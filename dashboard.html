@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('styles') }}">
+</head>
+<body class="dashboard-page">
+    <div class="dashboard-shell">
+        <aside class="history-sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-mark">C</div>
+                <div>
+                    <p class="sidebar-eyebrow">Course RAG</p>
+                    <h1 class="sidebar-title">{{ app_name }}</h1>
+                    <p class="sidebar-meta">{{ stats.documents }} 份文档 · {{ stats.chunks }} 个检索片段</p>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-section-head">
+                    <span>历史记录</span>
+                    <span id="history-count">0</span>
+                </div>
+                <div id="history-list" class="history-list">
+                    <p class="empty-state">当前用户还没有历史记录。提问一次，这里就会出现。</p>
+                </div>
+            </div>
+        </aside>
+
+        <section class="chat-stage">
+            <header class="chat-topbar">
+                <div class="chat-topbar-copy">
+                    <p class="eyebrow">RAG Workspace</p>
+                    <p class="chat-topbar-note">课程讲义、笔记和参考资料的本地检索增强问答工作台</p>
+                </div>
+                <div class="chat-topbar-right">
+                    <div class="status-row">
+                        <span class="status-pill">检索 {{ stats.backend }}</span>
+                        <span class="status-pill">{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
+                    </div>
+                    <div class="session-toolbar">
+                        <div class="session-inline">
+                            <span class="session-inline-label">当前用户</span>
+                            <strong id="auth-username-label">{{ current_user }}</strong>
+                        </div>
+                        <button id="logout-button" class="ghost-button" type="button">退出登录</button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="chat-main">
+                <div id="chat-feed" class="chat-feed">
+                    <section class="welcome-panel">
+                        <p class="eyebrow">Chat</p>
+                        <h2>有什么课程问题，尽管问</h2>
+                        <p class="welcome-text">可以直接问概念、定义、公式解释、算法步骤，也可以让系统总结某一章的重点。</p>
+                        <div class="suggestions welcome-suggestions">
+                            {% for question in suggested_questions %}
+                            <button class="suggestion-chip" type="button" data-question="{{ question }}">{{ question }}</button>
+                            {% endfor %}
+                        </div>
+                    </section>
+                </div>
+            </main>
+
+            <form id="ask-form" class="composer composer-floating">
+                <label class="sr-only" for="question-input">提问</label>
+                <div class="composer-row composer-chatgpt">
+                    <textarea id="question-input" name="question" rows="1" placeholder="有问题，尽管问"></textarea>
+                    <button id="submit-button" type="submit">发送</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <script src="{{ url_for('script') }}"></script>
+</body>
+</html>

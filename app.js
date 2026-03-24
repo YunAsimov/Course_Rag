@@ -1,9 +1,19 @@
 const chatFeed = document.getElementById("chat-feed");
-const sourceList = document.getElementById("source-list");
-const sourceCount = document.getElementById("source-count");
 const askForm = document.getElementById("ask-form");
 const input = document.getElementById("question-input");
 const submitButton = document.getElementById("submit-button");
+const logoutButton = document.getElementById("logout-button");
+const authUsernameLabel = document.getElementById("auth-username-label");
+const historyList = document.getElementById("history-list");
+const historyCount = document.getElementById("history-count");
+const initialChatMarkup = chatFeed.innerHTML;
+
+let authState = {
+    authenticated: false,
+    username: "",
+};
+let historyState = [];
+let activeHistoryId = "";
 
 function escapeHtml(text) {
     return text
@@ -277,7 +287,7 @@ function renderInlineMarkdown(text) {
         rendered = rendered.replace(`@@CODESPAN${index}@@`, codeSpans[index]);
     }
 
-    for (let index = 0; index < mathSpans.length; index += 1) {
+    for (let index = mathSpans.length - 1; index >= 0; index -= 1) {
         rendered = rendered.replace(`@@MATHBLOCK${index}@@`, mathSpans[index]);
         rendered = rendered.replace(`@@MATHINLINE${index}@@`, mathSpans[index]);
     }
@@ -432,61 +442,251 @@ function buildSourceHref(source) {
     return base;
 }
 
-function appendMessage(role, content, mode = "") {
-    const article = document.createElement("article");
-    article.className = `message ${role}`;
+function renderSourcesInline(sources) {
+    if (!sources.length) {
+        return "";
+    }
 
-    const modeLabel = mode || role;
-    const renderedBody = role === "assistant"
-        ? renderMarkdown(content)
-        : `<p>${escapeHtml(content)}</p>`;
-    article.innerHTML = `
-        <div class="message-head">
-            <span class="speaker">${role === "user" ? "你" : "知识助手"}</span>
-            <span class="mode-badge">${escapeHtml(modeLabel)}</span>
-        </div>
-        <div class="message-body markdown-body">${renderedBody}</div>
+    const items = sources.map((source) => {
+        const sourceHref = buildSourceHref(source);
+        const pageLabel = source.page_number ? `p.${source.page_number}` : "";
+        const sectionLabel = source.section_heading || source.page_heading || "";
+        const sourceSnippet = normalizeSourceSnippet(source.snippet || "");
+        return `
+            <article class="inline-source-item">
+                <div class="inline-source-meta">
+                    <span class="source-score">score ${source.score}</span>
+                    ${pageLabel ? `<span class="source-page">${escapeHtml(pageLabel)}</span>` : ""}
+                </div>
+                <h4 class="source-title">
+                    ${sourceHref
+                        ? `<a class="source-link" href="${escapeAttr(sourceHref)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>`
+                        : escapeHtml(source.title)}
+                </h4>
+                ${sectionLabel ? `<div class="source-heading">${escapeHtml(sectionLabel)}</div>` : ""}
+                <div class="source-path">
+                    ${sourceHref
+                        ? `<a class="source-link source-path-link" href="${escapeAttr(sourceHref)}" target="_blank" rel="noreferrer">${escapeHtml(source.path)}</a>`
+                        : escapeHtml(source.path)}
+                </div>
+                <div class="source-snippet markdown-body">${renderMarkdown(sourceSnippet)}</div>
+            </article>
+        `;
+    }).join("");
+
+    return `
+        <details class="turn-sources">
+            <summary>来源 ${sources.length}</summary>
+            <div class="turn-source-list">${items}</div>
+        </details>
     `;
+}
+
+function createTurnElement(question, answer, mode = "", sources = [], isPending = false) {
+    const article = document.createElement("article");
+    article.className = `turn-card${isPending ? " is-pending" : ""}`;
+    article.innerHTML = `
+        <div class="turn-question">${escapeHtml(question)}</div>
+        <div class="turn-answer-shell">
+            <div class="turn-answer-head">
+                <span class="turn-role">知识助手</span>
+                <span class="mode-badge">${escapeHtml(mode || "answer")}</span>
+            </div>
+            <div class="turn-answer markdown-body">${renderMarkdown(answer)}</div>
+            ${renderSourcesInline(sources)}
+        </div>
+    `;
+    return article;
+}
+
+function appendTurn(question, answer, mode = "", sources = [], isPending = false) {
+    if (chatFeed.querySelector(".welcome-panel")) {
+        chatFeed.innerHTML = "";
+    }
+    const article = createTurnElement(question, answer, mode, sources, isPending);
     chatFeed.appendChild(article);
     chatFeed.scrollTop = chatFeed.scrollHeight;
     return article;
 }
 
-function renderSources(sources) {
-    sourceCount.textContent = String(sources.length);
-    sourceList.innerHTML = "";
+function updateTurn(article, question, answer, mode = "", sources = [], isPending = false) {
+    const next = createTurnElement(question, answer, mode, sources, isPending);
+    if (article.dataset.turnId) {
+        next.dataset.turnId = article.dataset.turnId;
+    }
+    article.replaceWith(next);
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+    return next;
+}
 
-    if (!sources.length) {
-        sourceList.innerHTML = `<p class="empty-state">这次回答没有命中可展示的来源片段。</p>`;
+function redirectToLogin() {
+    window.location.replace("/login");
+}
+
+function formatHistoryTime(value) {
+    if (!value) {
+        return "";
+    }
+    const timestamp = new Date(value);
+    if (Number.isNaN(timestamp.getTime())) {
+        return value;
+    }
+    return timestamp.toLocaleString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function truncateText(text, limit = 88) {
+    const normalized = (text || "").replace(/\s+/g, " ").trim();
+    if (normalized.length <= limit) {
+        return normalized;
+    }
+    return `${normalized.slice(0, limit - 1)}…`;
+}
+
+function resetConversationView() {
+    chatFeed.innerHTML = initialChatMarkup;
+    chatFeed.scrollTop = 0;
+}
+
+function showHistoryRecord(record) {
+    resetConversationView();
+    const turn = appendTurn(
+        record.question || "",
+        record.answer || "",
+        record.mode || "history",
+        record.sources || [],
+        false,
+    );
+    if (record.id) {
+        turn.dataset.turnId = record.id;
+    }
+}
+
+async function deleteHistoryRecord(recordId) {
+    if (!recordId) {
+        return;
+    }
+    if (!window.confirm("确认删除这条历史记录？")) {
         return;
     }
 
-    for (const source of sources) {
-        const wrapper = document.createElement("article");
-        wrapper.className = "source-item";
-        const sourceHref = buildSourceHref(source);
-        const pageLabel = source.page_number ? `p.${source.page_number}` : "";
-        const sectionLabel = source.section_heading || source.page_heading || "";
-        const sourceSnippet = normalizeSourceSnippet(source.snippet || "");
-        wrapper.innerHTML = `
-            <div class="source-meta">
-                <span class="source-score">score ${source.score}</span>
-                ${pageLabel ? `<span class="source-page">${escapeHtml(pageLabel)}</span>` : ""}
+    try {
+        let response = await fetch(`/api/history/${encodeURIComponent(recordId)}`, {
+            method: "DELETE",
+        });
+        if (response.status === 404) {
+            response = await fetch("/api/history/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ record_id: recordId }),
+            });
+        }
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
+        if (!response.ok) {
+            return;
+        }
+
+        if (activeHistoryId === recordId) {
+            activeHistoryId = "";
+            resetConversationView();
+        }
+        await loadHistory();
+    } catch (error) {
+        // Keep the UI stable when deletion fails.
+    }
+}
+
+function renderHistory(records) {
+    historyState = records || [];
+    historyCount.textContent = String(historyState.length);
+    historyList.innerHTML = "";
+
+    if (!historyState.length) {
+        historyList.innerHTML = `<p class="empty-state">当前用户还没有历史记录。提问一次，这里就会出现。</p>`;
+        return;
+    }
+
+    for (const record of historyState) {
+        const item = document.createElement("article");
+        item.className = "history-item";
+        if (record.id === activeHistoryId) {
+            item.classList.add("is-active");
+        }
+        item.innerHTML = `
+            <div class="history-item-head">
+                <div class="history-item-meta">
+                    <span class="history-item-time">${escapeHtml(formatHistoryTime(record.created_at))}</span>
+                    <span class="history-item-mode">${escapeHtml(record.mode || "history")}</span>
+                </div>
+                <button class="history-delete-button" type="button" aria-label="删除历史记录" title="删除这条历史记录">×</button>
             </div>
-            <h3 class="source-title">
-                ${sourceHref
-                    ? `<a class="source-link" href="${escapeAttr(sourceHref)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>`
-                    : escapeHtml(source.title)}
-            </h3>
-            ${sectionLabel ? `<div class="source-heading">${escapeHtml(sectionLabel)}</div>` : ""}
-            <div class="source-path">
-                ${sourceHref
-                    ? `<a class="source-link source-path-link" href="${escapeAttr(sourceHref)}" target="_blank" rel="noreferrer">${escapeHtml(source.path)}</a>`
-                    : escapeHtml(source.path)}
-            </div>
-            <div class="source-snippet markdown-body">${renderMarkdown(sourceSnippet)}</div>
+            <button class="history-open-button" type="button">
+                <p class="history-item-question">${escapeHtml(record.question || "")}</p>
+                <p class="history-item-answer">${escapeHtml(record.answer || "")}</p>
+            </button>
         `;
-        sourceList.appendChild(wrapper);
+        const openButton = item.querySelector(".history-open-button");
+        const deleteButton = item.querySelector(".history-delete-button");
+        openButton.addEventListener("click", () => {
+            activeHistoryId = record.id || "";
+            renderHistory(historyState);
+            showHistoryRecord(record);
+        });
+        deleteButton.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            await deleteHistoryRecord(record.id || "");
+        });
+        historyList.appendChild(item);
+    }
+}
+
+async function loadHistory(selectedId = "") {
+    try {
+        const response = await fetch("/api/history");
+        const payload = await response.json();
+        if (!response.ok || !payload.authenticated) {
+            redirectToLogin();
+            return;
+        }
+
+        authState = {
+            authenticated: true,
+            username: payload.username || authState.username,
+        };
+        authUsernameLabel.textContent = authState.username;
+        activeHistoryId = selectedId || activeHistoryId;
+        renderHistory(payload.history || []);
+    } catch (error) {
+        historyList.innerHTML = `<p class="empty-state">历史记录读取失败，请稍后重试。</p>`;
+        historyCount.textContent = "0";
+    }
+}
+
+async function refreshAuthState() {
+    try {
+        const response = await fetch("/api/auth/me");
+        const payload = await response.json();
+        if (!response.ok || !payload.authenticated) {
+            redirectToLogin();
+            return;
+        }
+
+        authState = {
+            authenticated: Boolean(payload.authenticated),
+            username: payload.username || "",
+        };
+        authUsernameLabel.textContent = authState.username;
+        await loadHistory();
+    } catch (error) {
+        redirectToLogin();
     }
 }
 
@@ -496,8 +696,7 @@ async function ask(question) {
         return;
     }
 
-    appendMessage("user", trimmed, "question");
-    const loadingMessage = appendMessage("assistant", "正在检索资料并整理回答...", "loading");
+    const loadingTurn = appendTurn(trimmed, "正在检索资料并整理回答...", "loading", [], true);
 
     submitButton.disabled = true;
     submitButton.textContent = "检索中";
@@ -508,14 +707,34 @@ async function ask(question) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ question: trimmed }),
         });
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
         const payload = await response.json();
-        loadingMessage.remove();
-        appendMessage("assistant", payload.answer, payload.mode);
-        renderSources(payload.sources || []);
+        const savedTurn = updateTurn(
+            loadingTurn,
+            trimmed,
+            payload.answer,
+            payload.mode,
+            payload.sources || [],
+            false,
+        );
+        if (payload.history_id) {
+            savedTurn.dataset.turnId = payload.history_id;
+        }
+        if (payload.history_saved) {
+            await loadHistory(payload.history_id || "");
+        }
     } catch (error) {
-        loadingMessage.remove();
-        appendMessage("assistant", "请求失败，请检查后端是否正常运行。", "error");
-        renderSources([]);
+        updateTurn(
+            loadingTurn,
+            trimmed,
+            "请求失败，请检查后端是否正常运行。",
+            "error",
+            [],
+            false,
+        );
     } finally {
         submitButton.disabled = false;
         submitButton.textContent = "发送";
@@ -523,16 +742,54 @@ async function ask(question) {
     }
 }
 
+logoutButton.addEventListener("click", async () => {
+    logoutButton.disabled = true;
+    try {
+        await fetch("/api/auth/logout", { method: "POST" });
+        redirectToLogin();
+    } catch (error) {
+        logoutButton.disabled = false;
+    } finally {
+        logoutButton.disabled = false;
+    }
+});
+
 askForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const question = input.value;
     input.value = "";
+    autoResizeComposer();
     await ask(question);
 });
 
-for (const button of document.querySelectorAll(".suggestion-chip")) {
-    button.addEventListener("click", async () => {
-        input.value = button.dataset.question;
-        await ask(button.dataset.question);
-    });
+document.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+    const button = target.closest(".suggestion-chip");
+    if (!button) {
+        return;
+    }
+    const question = button.dataset.question || "";
+    input.value = "";
+    autoResizeComposer();
+    await ask(question);
+});
+
+function autoResizeComposer() {
+    input.style.height = "0px";
+    input.style.height = `${Math.min(input.scrollHeight, 220)}px`;
 }
+
+input.addEventListener("input", autoResizeComposer);
+input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        askForm.requestSubmit();
+    }
+});
+
+autoResizeComposer();
+
+refreshAuthState();

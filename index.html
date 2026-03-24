@@ -7,29 +7,41 @@
     <link rel="stylesheet" href="{{ url_for('styles') }}">
 </head>
 <body>
-    <div class="page-shell">
-        <header class="hero">
-            <div class="hero-copy">
-                <p class="eyebrow">RAG MVP</p>
+    <div class="page-shell app-shell">
+        <header class="topbar">
+            <div class="brand-cluster">
+                <p class="eyebrow">RAG Workspace</p>
                 <h1>{{ app_name }}</h1>
-                <p class="hero-text">
-                    面向课程讲义、笔记和参考资料的轻量检索增强问答系统。
-                    当前已载入 {{ stats.documents }} 份文档、{{ stats.chunks }} 个检索片段。
-                </p>
-                <div class="hero-badges">
-                    <span>检索后端：{{ stats.backend }}</span>
-                    <span>{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
-                </div>
+                <p class="topbar-note">课程讲义、笔记和参考资料的本地检索增强问答工作台。</p>
             </div>
-            <div class="hero-panel">
-                <p class="panel-label">可以直接试这些问题</p>
-                <div class="suggestions">
-                    {% for question in suggested_questions %}
-                    <button class="suggestion-chip" type="button" data-question="{{ question }}">{{ question }}</button>
-                    {% endfor %}
+            <div class="topbar-right">
+                <div class="status-row">
+                    <span class="status-pill">文档 {{ stats.documents }} 份</span>
+                    <span class="status-pill">检索片段 {{ stats.chunks }} 个</span>
+                    <span class="status-pill">检索后端 {{ stats.backend }}</span>
+                    <span class="status-pill">{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
+                </div>
+                <div class="session-toolbar">
+                    <div class="session-inline">
+                        <span class="session-inline-label">当前用户</span>
+                        <strong id="auth-username-label">{{ current_user }}</strong>
+                    </div>
+                    <button id="logout-button" class="ghost-button" type="button">退出登录</button>
                 </div>
             </div>
         </header>
+
+        <section class="suggestion-strip">
+            <div class="strip-copy">
+                <p class="panel-label">快速开始</p>
+                <p class="strip-text">可以直接点击常见问题，也可以在左侧输入更具体的 lecture 编号、章节名或关键词。</p>
+            </div>
+            <div class="suggestions">
+                {% for question in suggested_questions %}
+                <button class="suggestion-chip" type="button" data-question="{{ question }}">{{ question }}</button>
+                {% endfor %}
+            </div>
+        </section>
 
         <main class="workspace">
             <section class="chat-column">
@@ -56,6 +68,16 @@
             </section>
 
             <aside class="source-column">
+                <div class="history-card">
+                    <div class="source-head">
+                        <h2>历史记录</h2>
+                        <span id="history-count">0</span>
+                    </div>
+                    <div id="history-list" class="history-list">
+                        <p class="empty-state">登录后，这里会显示当前用户保存在本地文件里的问答历史。</p>
+                    </div>
+                </div>
+
                 <div class="source-card">
                     <div class="source-head">
                         <h2>来源片段</h2>

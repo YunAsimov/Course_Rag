@@ -1,0 +1,17 @@
+Map([<Rule '/' (OPTIONS, GET, HEAD) -> index>,
+ <Rule '/login' (OPTIONS, GET, HEAD) -> login_page>,
+ <Rule '/api/ask' (POST, OPTIONS) -> ask>,
+ <Rule '/api/auth/me' (OPTIONS, GET, HEAD) -> auth_me>,
+ <Rule '/api/auth/register' (POST, OPTIONS) -> register>,
+ <Rule '/api/auth/login' (POST, OPTIONS) -> login>,
+ <Rule '/api/auth/logout' (POST, OPTIONS) -> logout>,
+ <Rule '/api/history' (OPTIONS, GET, HEAD) -> history>,
+ <Rule '/api/history/<record_id>' (DELETE, OPTIONS) -> delete_history>,
+ <Rule '/api/history/delete' (POST, OPTIONS) -> delete_history_post>,
+ <Rule '/api/health' (OPTIONS, GET, HEAD) -> health>,
+ <Rule '/api/source' (OPTIONS, GET, HEAD) -> source>,
+ <Rule '/assets/styles.css' (OPTIONS, GET, HEAD) -> styles>,
+ <Rule '/assets/app.js' (OPTIONS, GET, HEAD) -> script>,
+ <Rule '/assets/auth.js' (OPTIONS, GET, HEAD) -> auth_script>])
+ * Serving Flask app 'app'
+ * Debug mode: off
