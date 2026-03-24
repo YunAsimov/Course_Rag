@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('styles') }}">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">RAG MVP</p>
+                <h1>{{ app_name }}</h1>
+                <p class="hero-text">
+                    面向课程讲义、笔记和参考资料的轻量检索增强问答系统。
+                    当前已载入 {{ stats.documents }} 份文档、{{ stats.chunks }} 个检索片段。
+                </p>
+                <div class="hero-badges">
+                    <span>检索后端：{{ stats.backend }}</span>
+                    <span>{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
+                </div>
+            </div>
+            <div class="hero-panel">
+                <p class="panel-label">可以直接试这些问题</p>
+                <div class="suggestions">
+                    {% for question in suggested_questions %}
+                    <button class="suggestion-chip" type="button" data-question="{{ question }}">{{ question }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="chat-column">
+                <div id="chat-feed" class="chat-feed">
+                    <article class="message assistant welcome-card">
+                        <div class="message-head">
+                            <span class="speaker">知识助手</span>
+                            <span class="mode-badge">ready</span>
+                        </div>
+                        <div class="message-body">
+                            <p>你可以直接问 lecture 里的概念、定义、算法步骤、公式解释，也可以要求我总结某一章的重点。</p>
+                            <p>如果问题太宽泛，最好补充 lecture 编号、章节标题或关键词，这样召回会更稳定。</p>
+                        </div>
+                    </article>
+                </div>
+
+                <form id="ask-form" class="composer">
+                    <label class="composer-label" for="question-input">提问</label>
+                    <div class="composer-row">
+                        <textarea id="question-input" name="question" rows="3" placeholder="例如：K-Means++ 为什么比随机初始化更稳定？"></textarea>
+                        <button id="submit-button" type="submit">发送</button>
+                    </div>
+                </form>
+            </section>
+
+            <aside class="source-column">
+                <div class="source-card">
+                    <div class="source-head">
+                        <h2>来源片段</h2>
+                        <span id="source-count">0</span>
+                    </div>
+                    <div id="source-list" class="source-list">
+                        <p class="empty-state">提问后，这里会展示当前答案对应的检索来源。</p>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script src="{{ url_for('script') }}"></script>
+</body>
+</html>

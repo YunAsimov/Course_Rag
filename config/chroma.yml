@@ -1,0 +1,7 @@
+backend: local_bm25
+chunk_size: 420
+chunk_overlap: 80
+top_k: 4
+max_context_chars: 2200
+min_score: 0.1
+title_boost: 0.45

@@ -1,0 +1,81 @@
+2026-03-23 19:03:58,514 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:03:58,522 - Agent - ERROR -file_handler.py:118- [文件加载] 读取 E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data\~$地机器人的发展历程.docx 失败: File is not a zip file
+Traceback (most recent call last):
+  File "E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\utils\file_handler.py", line 113, in load_file_records
+    text = docx_loader(file_path)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\utils\file_handler.py", line 63, in docx_loader
+    with zipfile.ZipFile(file_path) as archive:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Program\Anaconda\Lib\zipfile\__init__.py", line 1349, in __init__
+    self._RealGetContents()
+  File "D:\Program\Anaconda\Lib\zipfile\__init__.py", line 1416, in _RealGetContents
+    raise BadZipFile("File is not a zip file")
+zipfile.BadZipFile: File is not a zip file
+2026-03-23 19:03:58,742 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:04:33,115 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:04:33,166 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:04:33,303 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:04:33,345 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:04:47,422 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:04:47,596 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:05:17,756 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:05:17,928 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:06:08,851 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:06:09,033 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:09:55,122 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:09:55,306 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:10:48,717 - Agent - INFO -rag_service.py:33- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:10:48,899 - Agent - INFO -rag_service.py:84- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:16:29,005 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:16:29,177 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:17:05,490 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:17:05,662 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:18:37,291 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:18:37,462 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:24:56,770 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:24:56,946 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:25:45,069 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:25:45,230 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:25:45,231 - Agent - WARNING -rag_generator.py:60- [LLM] 已启用远程模型，但未读取到环境变量 OPENAI_API_KEY
+2026-03-23 19:27:26,832 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:27:26,990 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:29:03,074 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data
+2026-03-23 19:29:03,254 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 102 份，切片 128 个
+2026-03-23 19:39:59,556 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\7aa6b94bd2203e00\data/course
+2026-03-23 19:39:59,565 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 4 份，切片 85 个
+2026-03-23 19:39:59,634 - Agent - WARNING -rag_generator.py:99- [LLM] 远程生成失败，回退到本地摘要: HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: /compatible-mode/v1/chat/completions (Caused by NewConnectionError("HTTPSConnection(host='dashscope.aliyuncs.com', port=443): Failed to establish a new connection: [WinError 10013] 以一种访问权限不允许的方式做了一个访问套接字的尝试。"))
+2026-03-23 19:40:33,396 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 19:40:33,412 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 4 份，切片 85 个
+2026-03-23 19:54:53,441 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 19:54:59,910 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 15 份，切片 927 个
+2026-03-23 19:56:20,946 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 19:56:27,426 - Agent - INFO -rag_service.py:85- [索引] 构建完成，文档 15 份，切片 927 个
+2026-03-23 20:08:05,129 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:08:11,858 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:08:32,434 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:08:32,488 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:08:39,420 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:08:39,602 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:09:23,415 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\7aa6b94bd2203e00\data/course
+2026-03-23 20:09:29,981 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:09:52,638 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:09:59,194 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:14:52,606 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:14:52,655 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:14:59,720 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:14:59,726 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:14:59,767 - Agent - WARNING -rag_generator.py:99- [LLM] 远程生成失败，回退到本地摘要: HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: /compatible-mode/v1/chat/completions (Caused by NewConnectionError("HTTPSConnection(host='dashscope.aliyuncs.com', port=443): Failed to establish a new connection: [WinError 10013] 以一种访问权限不允许的方式做了一个访问套接字的尝试。"))
+2026-03-23 20:15:14,686 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:15:21,133 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:15:57,291 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:15:57,305 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:16:04,376 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:16:04,421 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:16:04,504 - Agent - WARNING -rag_generator.py:99- [LLM] 远程生成失败，回退到本地摘要: HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: /compatible-mode/v1/chat/completions (Caused by NewConnectionError("HTTPSConnection(host='dashscope.aliyuncs.com', port=443): Failed to establish a new connection: [WinError 10013] 以一种访问权限不允许的方式做了一个访问套接字的尝试。"))
+2026-03-23 20:16:27,107 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:16:33,687 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 15 份，切片 1100 个
+2026-03-23 20:59:28,349 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 20:59:28,392 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-23 21:00:10,262 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-23 21:00:10,304 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
