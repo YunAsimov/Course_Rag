@@ -1,4 +1,5 @@
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -27,10 +28,11 @@ class RAGService:
         self.retriever: Optional[BM25Retriever] = None
         self.generator = AnswerGenerator(self.agent_conf, self.prompts_conf)
         self.index_summary = {}
+        self._index_lock = threading.RLock()
 
         self._build_index()
 
-    def _build_index(self) -> None:
+    def _collect_index_data(self) -> tuple[list[Document], list, BM25Retriever, dict]:
         logger.info("[索引] 开始构建知识库索引: %s", self.data_dir)
         file_paths = listdir_with_allowed_type(self.data_dir, self.allowed_extensions)
 
@@ -76,10 +78,8 @@ class RAGService:
             if file_has_chunks:
                 doc_count += 1
 
-        self.documents = documents
-        self.chunks = chunks
-        self.retriever = BM25Retriever(chunks, title_boost=self.retrieval_conf["title_boost"])
-        self.index_summary = {
+        retriever = BM25Retriever(chunks, title_boost=self.retrieval_conf["title_boost"])
+        index_summary = {
             "documents": doc_count,
             "chunks": chunk_count,
             "data_dir": self.data_dir,
@@ -87,6 +87,68 @@ class RAGService:
             "remote_llm_enabled": bool(self.agent_conf.get("enabled")),
         }
         logger.info("[索引] 构建完成，文档 %s 份，切片 %s 个", doc_count, chunk_count)
+        return documents, chunks, retriever, index_summary
+
+    def _build_index(self) -> None:
+        documents, chunks, retriever, index_summary = self._collect_index_data()
+        with self._index_lock:
+            self.documents = documents
+            self.chunks = chunks
+            self.retriever = retriever
+            self.index_summary = index_summary
+
+    def reload_index(self) -> dict:
+        self._build_index()
+        with self._index_lock:
+            return self.index_summary.copy()
+
+    def list_material_files(self) -> list[dict]:
+        file_paths = listdir_with_allowed_type(self.data_dir, self.allowed_extensions)
+        project_root = get_abs_path(".")
+        materials: list[dict] = []
+
+        for file_path in file_paths:
+            file_stat = os.stat(file_path)
+            relative_path = os.path.relpath(file_path, project_root)
+            suffix = Path(file_path).suffix.lower()
+            materials.append(
+                {
+                    "name": Path(file_path).name,
+                    "title": Path(file_path).stem,
+                    "path": relative_path,
+                    "doc_type": suffix,
+                    "size_bytes": file_stat.st_size,
+                    "updated_at": file_stat.st_mtime,
+                }
+            )
+
+        materials.sort(key=lambda item: (-item["updated_at"], item["name"].lower()))
+        return materials
+
+    def delete_material_file(self, relative_path: str) -> dict:
+        clean_path = (relative_path or "").strip()
+        if not clean_path:
+            raise ValueError("缺少待删除的文件路径。")
+
+        data_root = Path(self.data_dir).resolve()
+        project_root = Path(get_abs_path(".")).resolve()
+        material_path = (project_root / clean_path).resolve()
+
+        if material_path != data_root and data_root not in material_path.parents:
+            raise PermissionError("不允许删除资料目录之外的文件。")
+        if not material_path.is_file():
+            raise FileNotFoundError("目标文件不存在。")
+        if material_path.suffix.lower() not in {extension.lower() for extension in self.allowed_extensions}:
+            raise ValueError("该文件类型不在当前资料库允许范围内。")
+
+        deleted_name = material_path.name
+        material_path.unlink()
+        stats = self.reload_index()
+        return {
+            "name": deleted_name,
+            "path": os.path.relpath(material_path, project_root),
+            "stats": stats,
+        }
 
     def ask(self, question: str) -> dict:
         clean_question = question.strip()
@@ -97,22 +159,28 @@ class RAGService:
                 "sources": [],
             }
 
-        if not self.retriever:
+        with self._index_lock:
+            retriever = self.retriever
+            top_k = self.retrieval_conf["top_k"]
+            min_score = self.retrieval_conf["min_score"]
+            max_context_chars = self.retrieval_conf["max_context_chars"]
+
+        if not retriever:
             return {
                 "answer": "检索器尚未初始化，无法回答问题。",
                 "mode": "error",
                 "sources": [],
             }
 
-        results = self.retriever.search(
+        results = retriever.search(
             clean_question,
-            top_k=self.retrieval_conf["top_k"],
-            min_score=self.retrieval_conf["min_score"],
+            top_k=top_k,
+            min_score=min_score,
         )
         answer, mode = self.generator.generate(
             clean_question,
             results,
-            max_context_chars=self.retrieval_conf["max_context_chars"],
+            max_context_chars=max_context_chars,
         )
 
         return {
@@ -135,8 +203,12 @@ class RAGService:
         }
 
     def get_ui_context(self) -> dict:
+        with self._index_lock:
+            stats = self.index_summary.copy()
         return {
             "app_name": self.rag_conf["app_name"],
             "suggested_questions": self.prompts_conf["suggested_questions"],
-            "stats": self.index_summary,
+            "stats": stats,
+            "allowed_extensions": list(self.allowed_extensions),
+            "allowed_extensions_label": ", ".join(self.allowed_extensions),
         }

@@ -150,6 +150,15 @@ def _meaningful_chunk(text: str) -> bool:
     return alnum_or_cjk >= max(18, len(compact) // 3)
 
 
+def _brief_meaningful_chunk(text: str) -> bool:
+    compact = text.strip()
+    if len(compact) < 8:
+        return False
+
+    alnum_or_cjk = sum(char.isalnum() or "\u4e00" <= char <= "\u9fff" for char in compact)
+    return alnum_or_cjk >= max(6, len(compact) // 2)
+
+
 def _build_overlap_seed(segments: list[str], chunk_overlap: int) -> list[str]:
     if not chunk_overlap or not segments:
         return []
@@ -206,6 +215,11 @@ def split_text_into_chunks(text: str, chunk_size: int, chunk_overlap: int) -> li
 
 def chunk_document(document: Document, chunk_size: int, chunk_overlap: int) -> list[Chunk]:
     parts = split_text_into_chunks(document.text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    if not parts:
+        fallback = _normalize_whitespace(document.text)
+        if _brief_meaningful_chunk(fallback):
+            parts = [fallback]
+
     return [
         Chunk(
             chunk_id=f"{document.doc_id}-chunk-{index}",

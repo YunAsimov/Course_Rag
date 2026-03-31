@@ -14,7 +14,7 @@
                 <div>
                     <p class="sidebar-eyebrow">Course RAG</p>
                     <h1 class="sidebar-title">{{ app_name }}</h1>
-                    <p class="sidebar-meta">{{ stats.documents }} 份文档 · {{ stats.chunks }} 个检索片段</p>
+                    <p class="sidebar-meta"><span id="stats-documents">{{ stats.documents }}</span> 份文档 · <span id="stats-chunks">{{ stats.chunks }}</span> 个检索片段</p>
                 </div>
             </div>
 
@@ -39,6 +39,13 @@
                     <div class="status-row">
                         <span class="status-pill">检索 {{ stats.backend }}</span>
                         <span class="status-pill">{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
+                        <span class="status-pill">支持 {{ allowed_extensions_label }}</span>
+                    </div>
+                    <div class="upload-toolbar">
+                        <input id="upload-input" type="file" accept="{{ allowed_extensions_label }}" multiple hidden>
+                        <button id="files-button" class="ghost-button" type="button">查看文件</button>
+                        <button id="upload-button" class="ghost-button" type="button">上传资料</button>
+                        <span class="upload-hint">上传后会自动刷新知识库</span>
                     </div>
                     <div class="session-toolbar">
                         <div class="session-inline">
@@ -74,6 +81,39 @@
             </form>
         </section>
     </div>
+
+    <div id="confirm-overlay" class="confirm-overlay" hidden>
+        <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+            <div id="confirm-badge" class="confirm-badge">删除确认</div>
+            <h3 id="confirm-title" class="confirm-title">删除这条历史记录？</h3>
+            <p id="confirm-message" class="confirm-message">删除后将无法恢复，这条问答记录会从当前账号的本地历史中移除。</p>
+            <div class="confirm-actions">
+                <button id="confirm-cancel" class="ghost-button" type="button">取消</button>
+                <button id="confirm-accept" class="danger-button" type="button">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="files-overlay" class="files-overlay" hidden>
+        <aside class="files-drawer" role="dialog" aria-modal="true" aria-labelledby="files-title">
+            <div class="files-drawer-head">
+                <div>
+                    <p class="eyebrow">Files</p>
+                    <h3 id="files-title" class="files-title">当前资料文件</h3>
+                </div>
+                <button id="files-close" class="ghost-button files-close-button" type="button" aria-label="关闭文件面板">关闭</button>
+            </div>
+            <div class="files-drawer-meta">
+                <span id="files-count" class="status-pill">0 个文件</span>
+                <span class="status-pill">目录：{{ stats.data_dir }}</span>
+            </div>
+            <div id="files-list" class="files-list">
+                <p class="empty-state">正在读取文件列表...</p>
+            </div>
+        </aside>
+    </div>
+
+    <div id="app-toast" class="app-toast" hidden></div>
 
     <script src="{{ url_for('script') }}"></script>
 </body>

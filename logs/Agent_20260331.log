@@ -1,0 +1,16 @@
+2026-03-31 16:31:38,638 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:31:38,688 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-31 16:32:40,548 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:32:40,604 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-31 16:36:48,238 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:36:48,285 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 11 份，切片 216 个
+2026-03-31 16:41:56,561 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:41:56,600 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 11 份，切片 216 个
+2026-03-31 16:42:22,213 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:42:22,255 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 12 份，切片 217 个
+2026-03-31 16:42:22,282 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:42:22,322 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 11 份，切片 216 个
+2026-03-31 16:44:21,403 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:44:21,442 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 11 份，切片 216 个
+2026-03-31 16:45:21,901 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-31 16:45:21,962 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 11 份，切片 216 个

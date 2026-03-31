@@ -1,6 +1,8 @@
+import re
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from utils.local_store import LocalAuthHistoryStore
 from utils.path_tool import get_abs_path
@@ -8,6 +10,29 @@ from utils.rag_service import RAGService
 
 service = RAGService()
 store = LocalAuthHistoryStore()
+UPLOAD_FILENAME_RE = re.compile(r"[^0-9A-Za-z\u4e00-\u9fff._()\-\s]+")
+
+
+def _sanitize_upload_filename(raw_name: str) -> str:
+    candidate = Path((raw_name or "").strip()).name.replace("\x00", "")
+    suffix = Path(candidate).suffix.lower()
+    stem = Path(candidate).stem.strip()
+    safe_stem = UPLOAD_FILENAME_RE.sub("_", stem).strip(" ._")
+    if not safe_stem:
+        safe_stem = "course_material"
+    return f"{safe_stem}{suffix}"
+
+
+def _resolve_upload_target(directory: Path, file_name: str) -> Path:
+    base_name = _sanitize_upload_filename(file_name)
+    stem = Path(base_name).stem
+    suffix = Path(base_name).suffix
+    target = directory / base_name
+    counter = 1
+    while target.exists():
+        target = directory / f"{stem}-{counter}{suffix}"
+        counter += 1
+    return target
 
 
 def create_app() -> Flask:
@@ -17,6 +42,7 @@ def create_app() -> Flask:
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_NAME="comp5575_rag_session",
+        MAX_CONTENT_LENGTH=20 * 1024 * 1024,
     )
     data_root = Path(service.data_dir).resolve()
 
@@ -162,6 +188,108 @@ def create_app() -> Flask:
         payload = request.get_json(silent=True) or {}
         return delete_history(str(payload.get("record_id", "")))
 
+    @app.post("/api/upload")
+    def upload_materials():
+        username = current_username()
+        if not username:
+            return jsonify({"authenticated": False, "message": "请先登录。"}), 401
+
+        uploaded_files = request.files.getlist("files")
+        if not uploaded_files:
+            return jsonify({"uploaded": False, "message": "请选择至少一个文件。"}), 400
+
+        saved_paths: list[Path] = []
+        saved_names: list[str] = []
+        allowed_extensions = {extension.lower() for extension in service.allowed_extensions}
+        data_root.mkdir(parents=True, exist_ok=True)
+
+        try:
+            for uploaded in uploaded_files:
+                raw_name = (uploaded.filename or "").strip()
+                if not raw_name:
+                    continue
+
+                safe_name = _sanitize_upload_filename(raw_name)
+                suffix = Path(safe_name).suffix.lower()
+                if suffix not in allowed_extensions:
+                    return jsonify(
+                        {
+                            "uploaded": False,
+                            "message": f"暂不支持 {suffix or '该类型'} 文件。当前仅允许：{', '.join(sorted(allowed_extensions))}",
+                            "allowed_extensions": sorted(allowed_extensions),
+                        }
+                    ), 400
+
+                target_path = _resolve_upload_target(data_root, safe_name)
+                uploaded.save(target_path)
+                saved_paths.append(target_path)
+                saved_names.append(target_path.name)
+
+            if not saved_paths:
+                return jsonify({"uploaded": False, "message": "没有检测到可上传的有效文件。"}), 400
+
+            stats = service.reload_index()
+        except Exception:
+            for saved_path in saved_paths:
+                if saved_path.exists():
+                    saved_path.unlink()
+            service.reload_index()
+            raise
+
+        return jsonify(
+            {
+                "uploaded": True,
+                "message": f"已上传 {len(saved_names)} 个文件，并完成知识库刷新。",
+                "files": saved_names,
+                "stats": stats,
+            }
+        )
+
+    @app.get("/api/files")
+    def list_files():
+        username = current_username()
+        if not username:
+            return jsonify({"authenticated": False, "message": "请先登录。", "files": []}), 401
+        return jsonify(
+            {
+                "authenticated": True,
+                "files": service.list_material_files(),
+            }
+        )
+
+    @app.delete("/api/files")
+    def delete_file():
+        username = current_username()
+        if not username:
+            return jsonify({"authenticated": False, "message": "请先登录。"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        relative_path = str(payload.get("path", "")).strip()
+        if not relative_path:
+            return jsonify({"authenticated": True, "deleted": False, "message": "缺少待删除的文件路径。"}), 400
+
+        try:
+            result = service.delete_material_file(relative_path)
+        except FileNotFoundError:
+            return jsonify({"authenticated": True, "deleted": False, "message": "目标文件不存在或已被删除。"}), 404
+        except PermissionError:
+            return jsonify({"authenticated": True, "deleted": False, "message": "不允许删除该文件。"}), 403
+        except ValueError as exc:
+            return jsonify({"authenticated": True, "deleted": False, "message": str(exc)}), 400
+
+        return jsonify(
+            {
+                "authenticated": True,
+                "deleted": True,
+                "message": f"已删除 {result['name']}，并刷新知识库。",
+                "file": {
+                    "name": result["name"],
+                    "path": result["path"],
+                },
+                "stats": result["stats"],
+            }
+        )
+
     @app.get("/api/health")
     def health():
         return jsonify(
@@ -197,6 +325,12 @@ def create_app() -> Flask:
     @app.get("/assets/auth.js")
     def auth_script():
         return send_file(get_abs_path("auth.js"))
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_large_upload(_: RequestEntityTooLarge):
+        if request.path.startswith("/api/"):
+            return jsonify({"uploaded": False, "message": "文件过大，请控制在 20MB 以内。"}), 413
+        return "文件过大，请控制在 20MB 以内。", 413
 
     return app
 

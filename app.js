@@ -3,9 +3,25 @@ const askForm = document.getElementById("ask-form");
 const input = document.getElementById("question-input");
 const submitButton = document.getElementById("submit-button");
 const logoutButton = document.getElementById("logout-button");
+const filesButton = document.getElementById("files-button");
+const uploadButton = document.getElementById("upload-button");
+const uploadInput = document.getElementById("upload-input");
+const statsDocuments = document.getElementById("stats-documents");
+const statsChunks = document.getElementById("stats-chunks");
+const appToast = document.getElementById("app-toast");
+const filesOverlay = document.getElementById("files-overlay");
+const filesCloseButton = document.getElementById("files-close");
+const filesList = document.getElementById("files-list");
+const filesCount = document.getElementById("files-count");
 const authUsernameLabel = document.getElementById("auth-username-label");
 const historyList = document.getElementById("history-list");
 const historyCount = document.getElementById("history-count");
+let confirmOverlay = document.getElementById("confirm-overlay");
+let confirmBadge = document.getElementById("confirm-badge");
+let confirmTitle = document.getElementById("confirm-title");
+let confirmMessage = document.getElementById("confirm-message");
+let confirmAcceptButton = document.getElementById("confirm-accept");
+let confirmCancelButton = document.getElementById("confirm-cancel");
 const initialChatMarkup = chatFeed.innerHTML;
 
 let authState = {
@@ -14,6 +30,10 @@ let authState = {
 };
 let historyState = [];
 let activeHistoryId = "";
+let confirmResolver = null;
+let confirmReturnFocus = null;
+let toastTimer = null;
+let filesPanelReturnFocus = null;
 
 function escapeHtml(text) {
     return text
@@ -548,6 +568,154 @@ function truncateText(text, limit = 88) {
     return `${normalized.slice(0, limit - 1)}…`;
 }
 
+function showToast(message, tone = "info") {
+    if (!appToast) {
+        return;
+    }
+    appToast.textContent = message;
+    appToast.className = `app-toast is-${tone}`;
+    appToast.hidden = false;
+
+    if (toastTimer) {
+        window.clearTimeout(toastTimer);
+    }
+    toastTimer = window.setTimeout(() => {
+        appToast.hidden = true;
+    }, 3200);
+}
+
+function formatFileSize(bytes) {
+    const size = Number(bytes);
+    if (!Number.isFinite(size) || size <= 0) {
+        return "0 B";
+    }
+
+    const units = ["B", "KB", "MB", "GB"];
+    let value = size;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatFileTime(timestamp) {
+    const value = new Date(Number(timestamp) * 1000);
+    if (Number.isNaN(value.getTime())) {
+        return "";
+    }
+    return value.toLocaleString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function updateStats(stats) {
+    if (!stats) {
+        return;
+    }
+    if (statsDocuments && Number.isFinite(Number(stats.documents))) {
+        statsDocuments.textContent = String(stats.documents);
+    }
+    if (statsChunks && Number.isFinite(Number(stats.chunks))) {
+        statsChunks.textContent = String(stats.chunks);
+    }
+}
+
+function closeFilesPanel() {
+    if (!filesOverlay) {
+        return;
+    }
+    filesOverlay.hidden = true;
+    document.body.classList.remove("modal-open");
+    if (filesPanelReturnFocus) {
+        filesPanelReturnFocus.focus();
+    }
+    filesPanelReturnFocus = null;
+}
+
+function renderFilesList(files) {
+    if (!filesList || !filesCount) {
+        return;
+    }
+
+    filesCount.textContent = `${files.length} 个文件`;
+    if (!files.length) {
+        filesList.innerHTML = `<p class="empty-state">当前还没有课程资料文件。先上传一个文件，这里就会出现。</p>`;
+        return;
+    }
+
+    filesList.innerHTML = files.map((file) => {
+        const href = buildSourceHref({ path: file.path });
+        const ext = (file.doc_type || "").replace(".", "").toUpperCase() || "FILE";
+        return `
+            <article class="file-item">
+                <div class="file-item-icon">${escapeHtml(ext)}</div>
+                <div class="file-item-body">
+                    <div class="file-item-meta">
+                        <span>${escapeHtml(ext)}</span>
+                        <span>${escapeHtml(formatFileSize(file.size_bytes))}</span>
+                        <span>${escapeHtml(formatFileTime(file.updated_at))}</span>
+                    </div>
+                    <div class="file-item-name">${escapeHtml(file.name || file.title || "")}</div>
+                    <div class="file-item-path">${escapeHtml(file.path || "")}</div>
+                </div>
+                <div class="file-item-actions">
+                    <a class="ghost-button file-open-button" href="${escapeAttr(href)}" target="_blank" rel="noreferrer">打开</a>
+                    <button
+                        class="file-delete-button"
+                        type="button"
+                        data-file-path="${escapeAttr(file.path || "")}"
+                        data-file-name="${escapeAttr(file.name || file.title || "")}"
+                    >删除</button>
+                </div>
+            </article>
+        `;
+    }).join("");
+}
+
+async function loadFilesList() {
+    if (!filesList || !filesCount) {
+        return;
+    }
+
+    filesList.innerHTML = `<p class="empty-state">正在读取文件列表...</p>`;
+    try {
+        const response = await fetch("/api/files");
+        const payload = await response.json();
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
+        if (!response.ok) {
+            filesList.innerHTML = `<p class="empty-state">文件列表读取失败，请稍后重试。</p>`;
+            filesCount.textContent = "0 个文件";
+            return;
+        }
+        renderFilesList(payload.files || []);
+    } catch (error) {
+        filesList.innerHTML = `<p class="empty-state">文件列表读取失败，请稍后重试。</p>`;
+        filesCount.textContent = "0 个文件";
+    }
+}
+
+async function openFilesPanel() {
+    if (!filesOverlay) {
+        return;
+    }
+    filesPanelReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    filesOverlay.hidden = false;
+    document.body.classList.add("modal-open");
+    await loadFilesList();
+    filesCloseButton?.focus();
+}
+
 function resetConversationView() {
     chatFeed.innerHTML = initialChatMarkup;
     chatFeed.scrollTop = 0;
@@ -567,11 +735,138 @@ function showHistoryRecord(record) {
     }
 }
 
+function closeConfirmDialog(confirmed) {
+    if (!confirmResolver || !confirmOverlay) {
+        return;
+    }
+    const resolve = confirmResolver;
+    confirmResolver = null;
+    confirmOverlay.hidden = true;
+    document.body.classList.remove("modal-open");
+    if (confirmReturnFocus) {
+        confirmReturnFocus.focus();
+    }
+    confirmReturnFocus = null;
+    resolve(confirmed);
+}
+
+function wireConfirmDialog() {
+    if (!confirmOverlay || confirmOverlay.dataset.bound === "true") {
+        return;
+    }
+
+    confirmAcceptButton?.addEventListener("click", () => {
+        closeConfirmDialog(true);
+    });
+
+    confirmCancelButton?.addEventListener("click", () => {
+        closeConfirmDialog(false);
+    });
+
+    confirmOverlay.addEventListener("click", (event) => {
+        if (event.target === confirmOverlay) {
+            closeConfirmDialog(false);
+        }
+    });
+
+    confirmOverlay.dataset.bound = "true";
+}
+
+function ensureConfirmDialog() {
+    if (!confirmOverlay) {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = `
+            <div id="confirm-overlay" class="confirm-overlay" hidden>
+                <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+                    <div id="confirm-badge" class="confirm-badge">删除确认</div>
+                    <h3 id="confirm-title" class="confirm-title">删除这条历史记录？</h3>
+                    <p id="confirm-message" class="confirm-message">删除后将无法恢复，这条问答记录会从当前账号的本地历史中移除。</p>
+                    <div class="confirm-actions">
+                        <button id="confirm-cancel" class="ghost-button" type="button">取消</button>
+                        <button id="confirm-accept" class="danger-button" type="button">确认删除</button>
+                    </div>
+                </div>
+            </div>
+        `.trim();
+        document.body.appendChild(wrapper.firstElementChild);
+        confirmOverlay = document.getElementById("confirm-overlay");
+        confirmBadge = document.getElementById("confirm-badge");
+        confirmTitle = document.getElementById("confirm-title");
+        confirmMessage = document.getElementById("confirm-message");
+        confirmAcceptButton = document.getElementById("confirm-accept");
+        confirmCancelButton = document.getElementById("confirm-cancel");
+    }
+
+    wireConfirmDialog();
+    return Boolean(confirmOverlay && confirmAcceptButton && confirmCancelButton);
+}
+
+function configureConfirmDialog(options = {}) {
+    if (!ensureConfirmDialog()) {
+        return false;
+    }
+
+    const settings = {
+        badge: options.badge || "删除确认",
+        title: options.title || "确认删除？",
+        message: options.message || "删除后将无法恢复。",
+        acceptLabel: options.acceptLabel || "确认删除",
+        cancelLabel: options.cancelLabel || "取消",
+    };
+
+    if (confirmBadge) {
+        confirmBadge.textContent = settings.badge;
+    }
+    if (confirmTitle) {
+        confirmTitle.textContent = settings.title;
+    }
+    if (confirmMessage) {
+        confirmMessage.textContent = settings.message;
+    }
+    if (confirmAcceptButton) {
+        confirmAcceptButton.textContent = settings.acceptLabel;
+    }
+    if (confirmCancelButton) {
+        confirmCancelButton.textContent = settings.cancelLabel;
+    }
+    return true;
+}
+
+function requestDeleteConfirmation(options = {}) {
+    if (!ensureConfirmDialog()) {
+        return Promise.resolve(false);
+    }
+    configureConfirmDialog(options);
+
+    if (confirmResolver) {
+        return Promise.resolve(false);
+    }
+
+    confirmReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    confirmOverlay.hidden = false;
+    document.body.classList.add("modal-open");
+    confirmAcceptButton.focus();
+
+    return new Promise((resolve) => {
+        confirmResolver = resolve;
+    });
+}
+
 async function deleteHistoryRecord(recordId) {
     if (!recordId) {
         return;
     }
-    if (!window.confirm("确认删除这条历史记录？")) {
+    const confirmed = await requestDeleteConfirmation({
+        badge: "删除历史",
+        title: "删除这条历史记录？",
+        message: "删除后将无法恢复，这条问答记录会从当前账号的本地历史中移除。",
+        acceptLabel: "确认删除",
+        cancelLabel: "取消",
+    });
+    if (!confirmed) {
         return;
     }
 
@@ -601,6 +896,90 @@ async function deleteHistoryRecord(recordId) {
         await loadHistory();
     } catch (error) {
         // Keep the UI stable when deletion fails.
+    }
+}
+
+async function deleteMaterialFile(path, name) {
+    const cleanPath = (path || "").trim();
+    if (!cleanPath) {
+        return;
+    }
+
+    const fileName = (name || cleanPath.split(/[\\/]/).pop() || cleanPath).trim();
+    const confirmed = await requestDeleteConfirmation({
+        badge: "删除文件",
+        title: `删除 ${fileName}？`,
+        message: "文件删除后会从资料目录移除，并立即重建知识库索引。这个操作无法撤销。",
+        acceptLabel: "确认删除",
+        cancelLabel: "取消",
+    });
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/files", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: cleanPath }),
+        });
+        const payload = await response.json();
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
+        if (!response.ok || !payload.deleted) {
+            showToast(payload.message || "删除失败，请稍后重试。", "error");
+            return;
+        }
+
+        updateStats(payload.stats);
+        await loadFilesList();
+        showToast(payload.message || `已删除：${fileName}`, "success");
+    } catch (error) {
+        showToast("删除失败，请稍后重试。", "error");
+    }
+}
+
+async function uploadMaterials(files) {
+    if (!uploadButton || !uploadInput || !files.length) {
+        return;
+    }
+
+    uploadButton.disabled = true;
+    uploadButton.textContent = "上传中";
+
+    try {
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append("files", file);
+        }
+
+        const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+        });
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
+
+        const payload = await response.json();
+        if (!response.ok || !payload.uploaded) {
+            showToast(payload.message || "上传失败，请稍后重试。", "error");
+            return;
+        }
+
+        updateStats(payload.stats);
+        await loadFilesList();
+        const uploadedNames = Array.isArray(payload.files) ? payload.files.join("、") : "";
+        showToast(uploadedNames ? `上传成功：${uploadedNames}` : payload.message, "success");
+    } catch (error) {
+        showToast("上传失败，请检查文件类型或稍后重试。", "error");
+    } finally {
+        uploadButton.disabled = false;
+        uploadButton.textContent = "上传资料";
+        uploadInput.value = "";
     }
 }
 
@@ -647,6 +1026,8 @@ function renderHistory(records) {
         historyList.appendChild(item);
     }
 }
+
+wireConfirmDialog();
 
 async function loadHistory(selectedId = "") {
     try {
@@ -754,6 +1135,53 @@ logoutButton.addEventListener("click", async () => {
     }
 });
 
+if (uploadButton && uploadInput) {
+    uploadButton.addEventListener("click", () => {
+        uploadInput.click();
+    });
+
+    uploadInput.addEventListener("change", async () => {
+        const files = Array.from(uploadInput.files || []);
+        await uploadMaterials(files);
+    });
+}
+
+if (filesButton) {
+    filesButton.addEventListener("click", async () => {
+        await openFilesPanel();
+    });
+}
+
+if (filesCloseButton) {
+    filesCloseButton.addEventListener("click", () => {
+        closeFilesPanel();
+    });
+}
+
+if (filesOverlay) {
+    filesOverlay.addEventListener("click", (event) => {
+        if (event.target === filesOverlay) {
+            closeFilesPanel();
+        }
+    });
+}
+
+if (filesList) {
+    filesList.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const button = target.closest(".file-delete-button");
+        if (!button) {
+            return;
+        }
+        const filePath = button.dataset.filePath || "";
+        const fileName = button.dataset.fileName || "";
+        await deleteMaterialFile(filePath, fileName);
+    });
+}
+
 askForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const question = input.value;
@@ -787,6 +1215,18 @@ input.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         askForm.requestSubmit();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && confirmResolver) {
+        event.preventDefault();
+        closeConfirmDialog(false);
+        return;
+    }
+    if (event.key === "Escape" && filesOverlay && !filesOverlay.hidden) {
+        event.preventDefault();
+        closeFilesPanel();
     }
 });
 

@@ -1,0 +1,12 @@
+2026-03-26 19:28:03,203 - Agent - INFO -rag_service.py:34- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-26 19:28:03,237 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-26 19:40:40,864 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-26 19:40:40,904 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-26 19:41:27,321 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-26 19:41:27,352 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 11 份，切片 216 个
+2026-03-26 19:42:24,217 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-26 19:42:24,256 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-26 21:47:39,248 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-26 21:47:39,286 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
+2026-03-26 21:59:06,037 - Agent - INFO -rag_service.py:36- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data/course
+2026-03-26 21:59:06,075 - Agent - INFO -rag_service.py:89- [索引] 构建完成，文档 10 份，切片 215 个
