@@ -1,4 +1,4 @@
-# COMP5575 Course RAG
+# Course RAG
 
 一个面向课程讲义、笔记和参考资料的轻量 RAG MVP。项目内置本地检索和前端问答界面，不配置远程 API 也可以直接运行。
 
