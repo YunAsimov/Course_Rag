@@ -3,8 +3,8 @@ from copy import deepcopy
 
 import yaml
 
-from utils.logger_handler import logger
-from utils.path_tool import get_abs_path
+from course_rag.core.logger_handler import logger
+from course_rag.core.path_tool import get_abs_path
 
 
 def load_local_env_file(env_path: str = get_abs_path(".env.local"), encoding: str = "utf-8") -> dict:
@@ -163,3 +163,4 @@ database_conf = load_database_config()
 
 if __name__ == "__main__":
     print(rag_conf["chat_model_name"])
+

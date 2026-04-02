@@ -1,4 +1,4 @@
-from app import app, service_manager
+from course_rag import app, service_manager
 
 
 if __name__ == "__main__":

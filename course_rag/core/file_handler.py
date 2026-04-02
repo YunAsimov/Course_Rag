@@ -9,7 +9,7 @@ from xml.etree import ElementTree
 
 from pypdf import PdfReader
 
-from utils.logger_handler import logger
+from course_rag.core.logger_handler import logger
 
 DEFAULT_ALLOWED_TYPES = (".md", ".txt", ".pdf", ".docx", ".csv")
 PDF_INLINE_SPACES_RE = re.compile(r"\b([A-Za-z])\s+([a-z]{2,})\b")
@@ -263,3 +263,4 @@ def load_file_records(file_path: str) -> list[dict]:
 
     logger.warning("[文件加载] 暂不支持的文件类型: %s", file_path)
     return []
+

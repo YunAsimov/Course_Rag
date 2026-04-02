@@ -5,9 +5,9 @@ from typing import Optional
 
 import requests
 
-from utils.logger_handler import logger
-from utils.rag_models import RetrievalResult
-from utils.rag_retriever import tokenize
+from course_rag.core.logger_handler import logger
+from course_rag.services.rag_models import RetrievalResult
+from course_rag.services.rag_retriever import tokenize
 
 SENTENCE_SPLITTER = re.compile(r"(?<=[。！？；\n])")
 GENERIC_SENTENCE_HINTS = (
@@ -160,3 +160,4 @@ class AnswerGenerator:
 
         ranked.sort(key=lambda item: item[1], reverse=True)
         return ranked
+

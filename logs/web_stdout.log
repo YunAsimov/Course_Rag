@@ -1,20 +1,2 @@
-Map([<Rule '/' (HEAD, OPTIONS, GET) -> index>,
- <Rule '/login' (HEAD, OPTIONS, GET) -> login_page>,
- <Rule '/api/ask' (POST, OPTIONS) -> ask>,
- <Rule '/api/auth/me' (HEAD, OPTIONS, GET) -> auth_me>,
- <Rule '/api/auth/register' (POST, OPTIONS) -> register>,
- <Rule '/api/auth/login' (POST, OPTIONS) -> login>,
- <Rule '/api/auth/logout' (POST, OPTIONS) -> logout>,
- <Rule '/api/history' (HEAD, OPTIONS, GET) -> history>,
- <Rule '/api/history/<record_id>' (DELETE, OPTIONS) -> delete_history>,
- <Rule '/api/history/delete' (POST, OPTIONS) -> delete_history_post>,
- <Rule '/api/upload' (POST, OPTIONS) -> upload_materials>,
- <Rule '/api/files' (HEAD, OPTIONS, GET) -> list_files>,
- <Rule '/api/files' (DELETE, OPTIONS) -> delete_file>,
- <Rule '/api/health' (HEAD, OPTIONS, GET) -> health>,
- <Rule '/api/source' (HEAD, OPTIONS, GET) -> source>,
- <Rule '/assets/styles.css' (HEAD, OPTIONS, GET) -> styles>,
- <Rule '/assets/app.js' (HEAD, OPTIONS, GET) -> script>,
- <Rule '/assets/auth.js' (HEAD, OPTIONS, GET) -> auth_script>])
- * Serving Flask app 'app'
+ * Serving Flask app 'course_rag.web'
  * Debug mode: off

@@ -1,6 +1,6 @@
 import re
 
-from utils.rag_models import Chunk, Document
+from course_rag.services.rag_models import Chunk, Document
 
 PARAGRAPH_SEPARATOR = re.compile(r"\n\s*\n+")
 MULTISPACE_RE = re.compile(r"[ \t]{2,}")
@@ -242,3 +242,4 @@ def chunk_document(document: Document, chunk_size: int, chunk_overlap: int) -> l
         )
         for index, part in enumerate(parts, start=1)
     ]
+

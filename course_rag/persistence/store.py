@@ -12,10 +12,10 @@ import pymysql
 from pymysql.cursors import DictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from utils.config_handler import load_database_config, load_rag_config
-from utils.file_handler import get_md5_file_hex, listdir_with_allowed_type
-from utils.logger_handler import logger
-from utils.path_tool import get_abs_path
+from course_rag.core.config_handler import load_database_config, load_rag_config
+from course_rag.core.file_handler import get_md5_file_hex, listdir_with_allowed_type
+from course_rag.core.logger_handler import logger
+from course_rag.core.path_tool import get_abs_path
 
 USERNAME_RE = re.compile(r"^[\w.@+\-\u4e00-\u9fff]{2,32}$")
 MAX_HISTORY_PER_USER = 50
@@ -572,6 +572,10 @@ class MySQLProjectStore:
 
         for username, records in legacy_history.items():
             normalized = self._normalize_username(username)
+            # Legacy bootstrap data belongs only to the configured default owner.
+            # Other users should start with an empty history and build their own.
+            if normalized != self.bootstrap_owner:
+                continue
             user_id = self._fetch_user_id(normalized)
             if not user_id:
                 continue
@@ -600,3 +604,5 @@ class MySQLProjectStore:
             normalized = self._normalize_username(username)
             if normalized:
                 self.sync_materials(normalized, self.allowed_extensions)
+
+

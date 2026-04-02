@@ -3,14 +3,19 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from utils.config_handler import load_agent_config, load_chroma_config, load_prompts_config, load_rag_config
-from utils.file_handler import get_md5_file_hex, listdir_with_allowed_type, load_file_records
-from utils.logger_handler import logger
-from utils.path_tool import get_abs_path
-from utils.rag_chunking import chunk_document
-from utils.rag_generator import AnswerGenerator
-from utils.rag_models import Document
-from utils.rag_retriever import BM25Retriever
+from course_rag.core.config_handler import (
+    load_agent_config,
+    load_chroma_config,
+    load_prompts_config,
+    load_rag_config,
+)
+from course_rag.core.file_handler import get_md5_file_hex, listdir_with_allowed_type, load_file_records
+from course_rag.core.logger_handler import logger
+from course_rag.core.path_tool import get_abs_path
+from course_rag.services.rag_chunking import chunk_document
+from course_rag.services.rag_generator import AnswerGenerator
+from course_rag.services.rag_models import Document
+from course_rag.services.rag_retriever import BM25Retriever
 
 
 class RAGService:
@@ -286,3 +291,4 @@ class UserRAGServiceManager:
         self.store.sync_materials(username, self.allowed_extensions)
         result["stats"] = service.index_summary.copy()
         return result
+

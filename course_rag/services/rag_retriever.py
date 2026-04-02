@@ -2,7 +2,7 @@ import math
 import re
 from collections import Counter, defaultdict
 
-from utils.rag_models import Chunk, RetrievalResult
+from course_rag.services.rag_models import Chunk, RetrievalResult
 
 ASCII_RE = re.compile(r"[a-z0-9_+\-]+")
 CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
@@ -121,3 +121,4 @@ class BM25Retriever:
 
         scored_items.sort(key=lambda item: (item[1], item[0].score), reverse=True)
         return [item[0] for item in scored_items[:top_k]]
+

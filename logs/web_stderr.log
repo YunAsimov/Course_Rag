@@ -1,7 +1,20 @@
-2026-04-02 21:10:12,579 - Agent - INFO -rag_service.py:50- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data\course
-2026-04-02 21:10:12,618 - Agent - INFO -rag_service.py:103- [索引] 构建完成，文档 10 份，切片 215 个
+2026-04-03 01:33:32,386 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data\course
+2026-04-03 01:33:32,424 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 10 份，切片 215 个
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on http://127.0.0.1:7860
 Press CTRL+C to quit
-127.0.0.1 - - [02/Apr/2026 21:10:28] "POST /api/auth/register HTTP/1.1" 403 -
-127.0.0.1 - - [02/Apr/2026 21:10:28] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 01:33:49] "GET /api/health HTTP/1.1" 200 -
+2026-04-03 02:23:41,953 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\storage\materials\zzw
+2026-04-03 02:23:41,964 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 1 份，切片 1 个
+2026-04-03 02:23:42,000 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\storage\materials\zzw
+2026-04-03 02:23:42,001 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 1 份，切片 1 个
+127.0.0.1 - - [03/Apr/2026 02:23:42] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 02:23:42] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 02:23:42] "GET /static/js/app.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 02:23:42] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 02:23:42] "GET /api/history HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 02:23:44] "POST /api/auth/logout HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /static/js/auth.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /api/auth/me HTTP/1.1" 200 -
