@@ -41,7 +41,7 @@ python app.py
 
 - `app.py`: Flask 入口
 - `utils/rag_service.py`: 检索和问答主流程
-- `index.html`、`styles.css`、`app.js`: Web 前端页面资源
+- `dashboard.html`、`auth.html`、`styles.css`、`app.js`、`auth.js`: Web 前端页面资源
 - `config/`: RAG、检索、提示词和模型配置
 - `data/course/`: 当前默认课程资料目录
 

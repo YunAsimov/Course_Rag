@@ -1,2 +1,5 @@
 .env.local
 storage/
+__pycache__/
+*.py[cod]
+logs/*.log
