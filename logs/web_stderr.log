@@ -1,0 +1,7 @@
+2026-04-02 21:10:12,579 - Agent - INFO -rag_service.py:50- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\data\course
+2026-04-02 21:10:12,618 - Agent - INFO -rag_service.py:103- [索引] 构建完成，文档 10 份，切片 215 个
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:7860
+Press CTRL+C to quit
+127.0.0.1 - - [02/Apr/2026 21:10:28] "POST /api/auth/register HTTP/1.1" 403 -
+127.0.0.1 - - [02/Apr/2026 21:10:28] "GET /login HTTP/1.1" 200 -

@@ -19,9 +19,13 @@ function setAuthStatus(message, tone = "muted") {
 
 function setAuthBusy(isBusy, loginLabel = "登录", registerLabel = "注册") {
     loginButton.disabled = isBusy;
-    registerButton.disabled = isBusy;
+    if (registerButton) {
+        registerButton.disabled = isBusy;
+    }
     loginButton.textContent = loginLabel;
-    registerButton.textContent = registerLabel;
+    if (registerButton) {
+        registerButton.textContent = registerLabel;
+    }
 }
 
 function redirectToApp() {
@@ -79,8 +83,10 @@ authForm.addEventListener("submit", async (event) => {
     await submitAuth("/api/auth/login", "登录中", "注册");
 });
 
-registerButton.addEventListener("click", async () => {
-    await submitAuth("/api/auth/register", "登录", "注册中");
-});
+if (registerButton) {
+    registerButton.addEventListener("click", async () => {
+        await submitAuth("/api/auth/register", "登录", "注册中");
+    });
+}
 
 checkExistingSession();

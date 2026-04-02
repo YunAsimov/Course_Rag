@@ -111,23 +111,12 @@ def create_app() -> Flask:
 
     @app.post("/api/auth/register")
     def register():
-        payload = request.get_json(silent=True) or {}
-        ok, message, user = store.register_user(
-            payload.get("username", ""),
-            payload.get("password", ""),
-        )
-        if not ok:
-            status_code = 409 if "已存在" in message else 400
-            return jsonify({"authenticated": False, "message": message}), status_code
-
-        session["username"] = user["username"]
         return jsonify(
             {
-                "authenticated": True,
-                "username": user["username"],
-                "message": message,
+                "authenticated": False,
+                "message": "当前已关闭自助注册，请由管理员在数据库中添加用户。",
             }
-        )
+        ), 403
 
     @app.post("/api/auth/login")
     def login():
