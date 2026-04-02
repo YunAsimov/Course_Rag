@@ -4,12 +4,12 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from utils.local_store import LocalAuthHistoryStore
+from utils.local_store import MySQLProjectStore
 from utils.path_tool import get_abs_path
-from utils.rag_service import RAGService
+from utils.rag_service import UserRAGServiceManager
 
-service = RAGService()
-store = LocalAuthHistoryStore()
+store = MySQLProjectStore()
+service_manager = UserRAGServiceManager(store)
 UPLOAD_FILENAME_RE = re.compile(r"[^0-9A-Za-z\u4e00-\u9fff._()\-\s]+")
 
 
@@ -44,7 +44,6 @@ def create_app() -> Flask:
         SESSION_COOKIE_NAME="comp5575_rag_session",
         MAX_CONTENT_LENGTH=20 * 1024 * 1024,
     )
-    data_root = Path(service.data_dir).resolve()
 
     def current_username() -> str:
         username = (session.get("username") or "").strip()
@@ -60,7 +59,7 @@ def create_app() -> Flask:
         username = current_username()
         if not username:
             return redirect(url_for("login_page"))
-        context = service.get_ui_context()
+        context = service_manager.get_ui_context(username)
         context["current_user"] = username
         return render_template("dashboard.html", **context)
 
@@ -68,7 +67,7 @@ def create_app() -> Flask:
     def login_page():
         if current_username():
             return redirect(url_for("index"))
-        context = service.get_ui_context()
+        context = service_manager.get_public_context()
         return render_template("auth.html", **context)
 
     @app.post("/api/ask")
@@ -85,7 +84,7 @@ def create_app() -> Flask:
             ), 401
         payload = request.get_json(silent=True) or {}
         question = payload.get("question", "")
-        result = service.ask(question)
+        result = service_manager.ask(username, question)
         if username and question.strip():
             record = store.append_history(
                 username=username,
@@ -200,6 +199,8 @@ def create_app() -> Flask:
 
         saved_paths: list[Path] = []
         saved_names: list[str] = []
+        service = service_manager.get_service(username)
+        data_root = store.get_user_material_dir(username)
         allowed_extensions = {extension.lower() for extension in service.allowed_extensions}
         data_root.mkdir(parents=True, exist_ok=True)
 
@@ -228,12 +229,12 @@ def create_app() -> Flask:
             if not saved_paths:
                 return jsonify({"uploaded": False, "message": "没有检测到可上传的有效文件。"}), 400
 
-            stats = service.reload_index()
+            stats = service_manager.reload_user_index(username)
         except Exception:
             for saved_path in saved_paths:
                 if saved_path.exists():
                     saved_path.unlink()
-            service.reload_index()
+            service_manager.reload_user_index(username)
             raise
 
         return jsonify(
@@ -253,7 +254,7 @@ def create_app() -> Flask:
         return jsonify(
             {
                 "authenticated": True,
-                "files": service.list_material_files(),
+                "files": service_manager.list_material_files(username),
             }
         )
 
@@ -269,7 +270,7 @@ def create_app() -> Flask:
             return jsonify({"authenticated": True, "deleted": False, "message": "缺少待删除的文件路径。"}), 400
 
         try:
-            result = service.delete_material_file(relative_path)
+            result = service_manager.delete_material_file(username, relative_path)
         except FileNotFoundError:
             return jsonify({"authenticated": True, "deleted": False, "message": "目标文件不存在或已被删除。"}), 404
         except PermissionError:
@@ -292,21 +293,30 @@ def create_app() -> Flask:
 
     @app.get("/api/health")
     def health():
+        username = current_username()
+        if username:
+            stats = service_manager.get_service(username).index_summary
+        else:
+            stats = service_manager.get_public_context()["stats"]
         return jsonify(
             {
                 "status": "ok",
-                "documents": service.index_summary.get("documents", 0),
-                "chunks": service.index_summary.get("chunks", 0),
-                "backend": service.index_summary.get("backend"),
+                "documents": stats.get("documents", 0),
+                "chunks": stats.get("chunks", 0),
+                "backend": stats.get("backend"),
             }
         )
 
     @app.get("/api/source")
     def source():
+        username = current_username()
+        if not username:
+            abort(401)
         relative_path = (request.args.get("path") or "").strip()
         if not relative_path:
             abort(400)
 
+        data_root = store.get_user_material_dir(username).resolve()
         source_path = Path(get_abs_path(relative_path)).resolve()
         if source_path != data_root and data_root not in source_path.parents:
             abort(403)
@@ -339,7 +349,7 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    rag_conf = service.rag_conf
+    rag_conf = service_manager.rag_conf
     app.run(
         host=rag_conf["host"],
         port=rag_conf["port"],

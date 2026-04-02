@@ -14,13 +14,14 @@ from utils.rag_retriever import BM25Retriever
 
 
 class RAGService:
-    def __init__(self):
+    def __init__(self, data_dir: Optional[str] = None):
         self.rag_conf = load_rag_config()
         self.retrieval_conf = load_chroma_config()
         self.prompts_conf = load_prompts_config()
         self.agent_conf = load_agent_config()
 
-        self.data_dir = get_abs_path(self.rag_conf["data_dir"])
+        configured_dir = data_dir or self.rag_conf["data_dir"]
+        self.data_dir = self._resolve_data_dir(configured_dir)
         self.allowed_extensions = tuple(self.rag_conf["allowed_extensions"])
 
         self.documents: list[Document] = []
@@ -31,6 +32,19 @@ class RAGService:
         self._index_lock = threading.RLock()
 
         self._build_index()
+
+    def _resolve_data_dir(self, data_dir: str) -> str:
+        candidate = Path(data_dir)
+        if candidate.is_absolute():
+            return str(candidate.resolve())
+        return str(Path(get_abs_path(data_dir)).resolve())
+
+    def _data_dir_label(self) -> str:
+        project_root = Path(get_abs_path(".")).resolve()
+        try:
+            return os.path.relpath(self.data_dir, project_root)
+        except ValueError:
+            return self.data_dir
 
     def _collect_index_data(self) -> tuple[list[Document], list, BM25Retriever, dict]:
         logger.info("[索引] 开始构建知识库索引: %s", self.data_dir)
@@ -82,7 +96,7 @@ class RAGService:
         index_summary = {
             "documents": doc_count,
             "chunks": chunk_count,
-            "data_dir": self.data_dir,
+            "data_dir": self._data_dir_label(),
             "backend": self.retrieval_conf["backend"],
             "remote_llm_enabled": bool(self.agent_conf.get("enabled")),
         }
@@ -164,11 +178,12 @@ class RAGService:
             top_k = self.retrieval_conf["top_k"]
             min_score = self.retrieval_conf["min_score"]
             max_context_chars = self.retrieval_conf["max_context_chars"]
+            chunk_count = len(self.chunks)
 
-        if not retriever:
+        if not retriever or chunk_count == 0:
             return {
-                "answer": "检索器尚未初始化，无法回答问题。",
-                "mode": "error",
+                "answer": "当前用户的资料库还是空的。先上传课程资料，再进行提问。",
+                "mode": "empty_index",
                 "sources": [],
             }
 
@@ -212,3 +227,62 @@ class RAGService:
             "allowed_extensions": list(self.allowed_extensions),
             "allowed_extensions_label": ", ".join(self.allowed_extensions),
         }
+
+
+class UserRAGServiceManager:
+    def __init__(self, store):
+        self.store = store
+        self.rag_conf = load_rag_config()
+        self.allowed_extensions = tuple(self.rag_conf["allowed_extensions"])
+        self.prompts_conf = load_prompts_config()
+        self._services: dict[str, RAGService] = {}
+        self._lock = threading.RLock()
+        self._public_service = RAGService(data_dir=self.rag_conf["data_dir"])
+
+    def get_public_context(self) -> dict:
+        return self._public_service.get_ui_context()
+
+    def get_service(self, username: str) -> RAGService:
+        normalized = (username or "").strip()
+        if not normalized:
+            raise ValueError("用户名不能为空。")
+
+        material_dir = self.store.get_user_material_dir(normalized).resolve()
+        with self._lock:
+            service = self._services.get(normalized)
+            if service is None or Path(service.data_dir).resolve() != material_dir:
+                service = RAGService(data_dir=str(material_dir))
+                self._services[normalized] = service
+        return service
+
+    def reload_user_index(self, username: str) -> dict:
+        self.store.sync_materials(username, self.allowed_extensions)
+        service = self.get_service(username)
+        return service.reload_index()
+
+    def get_ui_context(self, username: str) -> dict:
+        service = self.get_service(username)
+        self.store.sync_materials(username, self.allowed_extensions)
+        stats = service.reload_index()
+        return {
+            "app_name": self.rag_conf["app_name"],
+            "suggested_questions": self.prompts_conf["suggested_questions"],
+            "stats": stats,
+            "allowed_extensions": list(self.allowed_extensions),
+            "allowed_extensions_label": ", ".join(self.allowed_extensions),
+        }
+
+    def ask(self, username: str, question: str) -> dict:
+        service = self.get_service(username)
+        return service.ask(question)
+
+    def list_material_files(self, username: str) -> list[dict]:
+        self.store.sync_materials(username, self.allowed_extensions)
+        return self.store.list_materials(username, sync=False)
+
+    def delete_material_file(self, username: str, relative_path: str) -> dict:
+        service = self.get_service(username)
+        result = service.delete_material_file(relative_path)
+        self.store.sync_materials(username, self.allowed_extensions)
+        result["stats"] = service.index_summary.copy()
+        return result

@@ -35,6 +35,8 @@ DEFAULT_RAG_CONFIG = {
     "port": 7860,
     "debug": False,
     "data_dir": "data/course",
+    "user_materials_root": "storage/materials",
+    "bootstrap_owner": "lyy",
     "allowed_extensions": [".md"],
     "chat_model_name": "qwen3-max",
     "embedding_model_name": "text-embedding-v4",
@@ -79,6 +81,15 @@ DEFAULT_AGENT_CONFIG = {
     "temperature": 0.2,
     "max_tokens": 700,
     "timeout_seconds": 30,
+}
+
+DEFAULT_DATABASE_CONFIG = {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "password": "",
+    "database": "course_rag",
+    "charset": "utf8mb4",
 }
 
 
@@ -132,10 +143,22 @@ def load_agent_config(
     return merged
 
 
+def load_database_config() -> dict:
+    merged = deepcopy(DEFAULT_DATABASE_CONFIG)
+    merged["host"] = LOCAL_ENV_VALUES.get("MYSQL_HOST") or os.getenv("MYSQL_HOST") or merged["host"]
+    merged["port"] = int(LOCAL_ENV_VALUES.get("MYSQL_PORT") or os.getenv("MYSQL_PORT") or merged["port"])
+    merged["user"] = LOCAL_ENV_VALUES.get("MYSQL_USER") or os.getenv("MYSQL_USER") or merged["user"]
+    merged["password"] = LOCAL_ENV_VALUES.get("MYSQL_PASSWORD") or os.getenv("MYSQL_PASSWORD") or merged["password"]
+    merged["database"] = LOCAL_ENV_VALUES.get("MYSQL_DATABASE") or os.getenv("MYSQL_DATABASE") or merged["database"]
+    merged["charset"] = LOCAL_ENV_VALUES.get("MYSQL_CHARSET") or os.getenv("MYSQL_CHARSET") or merged["charset"]
+    return merged
+
+
 rag_conf = load_rag_config()
 chroma_conf = load_chroma_config()
 prompts_conf = load_prompts_config()
 agent_conf = load_agent_config()
+database_conf = load_database_config()
 
 
 if __name__ == "__main__":

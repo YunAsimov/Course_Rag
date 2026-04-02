@@ -1,8 +1,8 @@
-from app import app, service
+from app import app, service_manager
 
 
 if __name__ == "__main__":
-    rag_conf = service.rag_conf
+    rag_conf = service_manager.rag_conf
     print(app.url_map, flush=True)
     app.run(
         host=rag_conf["host"],

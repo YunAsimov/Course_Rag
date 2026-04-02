@@ -9,6 +9,8 @@
 - 可选接入 OpenAI 兼容接口进行远程生成
 - 提供一个简单的 Flask Web 问答界面，展示答案和来源片段
 - 默认索引 `data/course` 目录下的 Markdown 课程资料
+- 不同用户拥有各自独立的资料目录，互不共享上传文件
+- 账号、历史记录和资料元数据持久化到 MySQL `course_rag`
 
 ## 快速启动
 
@@ -37,13 +39,27 @@ python app.py
 3. 如需覆盖默认地址，可在 `.env.local` 中配置 `OPENAI_BASE_URL`
 4. 如有需要，修改 `model_name`
 
+## MySQL 存储
+
+项目默认从根目录 `.env.local` 读取数据库配置：
+
+- `MYSQL_HOST`
+- `MYSQL_PORT`
+- `MYSQL_USER`
+- `MYSQL_PASSWORD`
+- `MYSQL_DATABASE`
+
+当前实现会在启动时自动创建 `course_rag` 数据库和所需表结构。
+
 ## 目录说明
 
 - `app.py`: Flask 入口
-- `utils/rag_service.py`: 检索和问答主流程
+- `utils/rag_service.py`: 按用户管理资料目录、索引和问答主流程
+- `utils/local_store.py`: MySQL 用户、历史和资料元数据存储
 - `dashboard.html`、`auth.html`、`styles.css`、`app.js`、`auth.js`: Web 前端页面资源
 - `config/`: RAG、检索、提示词和模型配置
 - `data/course/`: 当前默认课程资料目录
+- `storage/materials/<username>/`: 每个用户自己的资料文件目录
 
 ## 当前实现说明
 

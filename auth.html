@@ -10,24 +10,19 @@
     <div class="auth-shell">
         <section class="auth-layout">
             <div class="auth-copy">
-                <p class="eyebrow">RAG Access</p>
-                <h1>{{ app_name }}</h1>
+                <p class="eyebrow">Welcome</p>
+                <h1>课程问答助手</h1>
                 <p class="hero-text">
-                    登录后进入课程问答主页。你的提问历史会按用户保存到本地文件，
-                    之后可以在右侧历史记录区直接回看。
+                    登录后即可进入问答页面，查看自己的历史记录并上传自己的课程资料。
                 </p>
-                <div class="hero-badges">
-                    <span>检索后端：{{ stats.backend }}</span>
-                    <span>当前语料：{{ stats.documents }} 份文档 / {{ stats.chunks }} 个片段</span>
-                </div>
             </div>
 
             <section class="auth-card auth-panel">
                 <div class="auth-head">
-                    <p class="panel-label">本地账号登录</p>
+                    <p class="panel-label">账号登录</p>
                     <span id="auth-badge" class="auth-badge">未登录</span>
                 </div>
-                <p id="auth-status" class="auth-status">输入用户名和密码。没有账号可以直接注册，成功后会自动进入问答页面。</p>
+                <p id="auth-status" class="auth-status">请输入用户名和密码。没有账号可以直接注册。</p>
                 <form id="auth-form" class="auth-form">
                     <label class="sr-only" for="auth-username">用户名</label>
                     <input id="auth-username" name="username" type="text" maxlength="32" autocomplete="username" placeholder="用户名">
@@ -38,7 +33,6 @@
                         <button id="register-button" class="ghost-button" type="button">注册</button>
                     </div>
                 </form>
-                <p class="auth-note">账号和历史记录仅保存在当前项目目录的本地文件中，不接数据库。</p>
             </section>
         </section>
     </div>
