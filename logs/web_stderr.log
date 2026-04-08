@@ -18,3 +18,47 @@ Press CTRL+C to quit
 127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /static/css/styles.css HTTP/1.1" 304 -
 127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /static/js/auth.js HTTP/1.1" 304 -
 127.0.0.1 - - [03/Apr/2026 02:23:44] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:40] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:40] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:40] "GET /static/js/auth.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:40] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:43] "POST /api/auth/login HTTP/1.1" 200 -
+2026-04-03 03:59:43,962 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\storage\materials\lyy
+2026-04-03 03:59:43,994 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 10 份，切片 215 个
+2026-04-03 03:59:44,051 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\storage\materials\lyy
+2026-04-03 03:59:44,081 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 10 份，切片 215 个
+127.0.0.1 - - [03/Apr/2026 03:59:44] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:44] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:44] "GET /static/js/app.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:44] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:44] "GET /api/history HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:49] "POST /api/auth/logout HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:49] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:49] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:49] "GET /static/js/auth.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:49] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:54] "POST /api/auth/login HTTP/1.1" 200 -
+2026-04-03 03:59:54,185 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\storage\materials\zzw
+2026-04-03 03:59:54,187 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 1 份，切片 1 个
+127.0.0.1 - - [03/Apr/2026 03:59:54] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:54] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:54] "GET /static/js/app.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 03:59:54] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:54] "GET /api/history HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 03:59:57] "GET /login HTTP/1.1" 302 -
+127.0.0.1 - - [03/Apr/2026 03:59:57] "GET /api/history HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:03:58] "POST /api/auth/logout HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:03:58] "GET /login HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:03:58] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 04:03:58] "GET /static/js/auth.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 04:03:59] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:04:03] "POST /api/auth/login HTTP/1.1" 200 -
+2026-04-03 04:04:03,235 - Agent - INFO -rag_service.py:55- [索引] 开始构建知识库索引: E:\Academic\COMP5575_High-Dimensional_Data_Management_and_Analytics\Project\RAG\storage\materials\lyy
+2026-04-03 04:04:03,270 - Agent - INFO -rag_service.py:108- [索引] 构建完成，文档 10 份，切片 215 个
+127.0.0.1 - - [03/Apr/2026 04:04:03] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:04:03] "GET /static/css/styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 04:04:03] "GET /static/js/app.js HTTP/1.1" 304 -
+127.0.0.1 - - [03/Apr/2026 04:04:03] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:04:03] "GET /api/history HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:04:15] "POST /api/ask HTTP/1.1" 200 -
+127.0.0.1 - - [03/Apr/2026 04:04:15] "GET /api/history HTTP/1.1" 200 -
