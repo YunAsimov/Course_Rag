@@ -1,9 +1,12 @@
 import csv
 import hashlib
+import json
 import logging
 import os
 import re
 import zipfile
+from html import unescape
+from html.parser import HTMLParser
 from typing import Iterable
 from xml.etree import ElementTree
 
@@ -11,7 +14,20 @@ from pypdf import PdfReader
 
 from course_rag.core.logger_handler import logger
 
-DEFAULT_ALLOWED_TYPES = (".md", ".txt", ".pdf", ".docx", ".csv")
+DEFAULT_ALLOWED_TYPES = (
+    ".md",
+    ".markdown",
+    ".txt",
+    ".pdf",
+    ".docx",
+    ".csv",
+    ".tsv",
+    ".json",
+    ".html",
+    ".htm",
+    ".pptx",
+)
+MARKDOWN_TYPES = {".md", ".markdown"}
 PDF_INLINE_SPACES_RE = re.compile(r"\b([A-Za-z])\s+([a-z]{2,})\b")
 PDF_SHORT_TOKEN_RE = re.compile(r"^(?:\d+|[ivxlcdm]+)$", re.IGNORECASE)
 PDF_BULLET_RE = re.compile(r"^(?:[-*•▪◦]|(?:\d+|[A-Za-z])[\.\)])\s+")
@@ -25,8 +41,74 @@ PDF_COURSE_HEADER_MARKERS = (
     "slidescanbefreelyused",
     "sl idescontributorforlecture".replace(" ", ""),
 )
+PPTX_SLIDE_RE = re.compile(r"ppt/slides/slide(\d+)\.xml$")
 
 logging.getLogger("pypdf").setLevel(logging.ERROR)
+
+
+class _HTMLTextExtractor(HTMLParser):
+    BLOCK_TAGS = {
+        "p",
+        "div",
+        "section",
+        "article",
+        "main",
+        "aside",
+        "header",
+        "footer",
+        "nav",
+        "ul",
+        "ol",
+        "li",
+        "table",
+        "tr",
+        "br",
+        "hr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "pre",
+    }
+    SKIP_TAGS = {"script", "style", "noscript"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        lowered = tag.lower()
+        if lowered in self.SKIP_TAGS:
+            self._skip_depth += 1
+            return
+        if self._skip_depth == 0 and lowered in self.BLOCK_TAGS:
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        lowered = tag.lower()
+        if lowered in self.SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
+            return
+        if self._skip_depth == 0 and lowered in self.BLOCK_TAGS:
+            self._parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth > 0:
+            return
+        cleaned = unescape(data.replace("\xa0", " "))
+        if cleaned.strip():
+            self._parts.append(cleaned)
+
+    def get_text(self) -> str:
+        text = "".join(self._parts)
+        text = re.sub(r"\n\s*\n+", "\n\n", text)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r" *\n *", "\n", text)
+        return text.strip()
 
 
 def get_md5_file_hex(file_path: str) -> str:
@@ -134,10 +216,7 @@ def _group_pdf_lines(lines: list[str]) -> list[str]:
         nonlocal current, current_kind
         if not current:
             return
-        if current_kind == "bullet":
-            blocks.append(" ".join(current).strip())
-        else:
-            blocks.append(" ".join(current).strip())
+        blocks.append(" ".join(current).strip())
         current = []
         current_kind = ""
 
@@ -203,6 +282,16 @@ def txt_loader(file_path: str, encoding: str = "utf-8") -> str:
         return file.read().strip()
 
 
+def html_loader(file_path: str, encoding: str = "utf-8") -> str:
+    with open(file_path, "r", encoding=encoding, errors="ignore") as file:
+        raw_html = file.read()
+
+    parser = _HTMLTextExtractor()
+    parser.feed(raw_html)
+    parser.close()
+    return parser.get_text()
+
+
 def docx_loader(file_path: str) -> str:
     with zipfile.ZipFile(file_path) as archive:
         xml_bytes = archive.read("word/document.xml")
@@ -218,10 +307,125 @@ def docx_loader(file_path: str) -> str:
     return "\n\n".join(paragraphs)
 
 
-def csv_loader(file_path: str, encoding: str = "utf-8-sig") -> list[dict]:
+def _json_to_lines(value, prefix: str = "") -> list[str]:
+    lines: list[str] = []
+
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_prefix = f"{prefix}.{key}" if prefix else str(key)
+            lines.extend(_json_to_lines(child, child_prefix))
+        return lines
+
+    if isinstance(value, list):
+        if not value:
+            if prefix:
+                lines.append(f"{prefix}: []")
+            return lines
+        if all(not isinstance(item, (dict, list)) for item in value):
+            rendered = ", ".join(str(item) for item in value)
+            lines.append(f"{prefix}: {rendered}" if prefix else rendered)
+            return lines
+        for index, child in enumerate(value, start=1):
+            child_prefix = f"{prefix}[{index}]" if prefix else f"item[{index}]"
+            lines.extend(_json_to_lines(child, child_prefix))
+        return lines
+
+    if value is None:
+        return lines
+
+    rendered = str(value).strip()
+    if not rendered:
+        return lines
+    lines.append(f"{prefix}: {rendered}" if prefix else rendered)
+    return lines
+
+
+def json_loader(file_path: str, encoding: str = "utf-8") -> list[dict]:
+    with open(file_path, "r", encoding=encoding) as file:
+        data = json.load(file)
+
+    if isinstance(data, list) and data and all(isinstance(item, dict) for item in data):
+        records: list[dict] = []
+        base_name = os.path.basename(file_path)
+        for row_number, item in enumerate(data, start=1):
+            lines = _json_to_lines(item)
+            text = "\n".join(lines).strip()
+            if not text:
+                continue
+            records.append(
+                {
+                    "title": f"{base_name} 第 {row_number} 项",
+                    "text": text,
+                    "metadata": {
+                        "row_number": row_number,
+                        "source_type": "json_item",
+                    },
+                }
+            )
+        if records:
+            return records
+
+    lines = _json_to_lines(data)
+    return [
+        {
+            "title": os.path.splitext(os.path.basename(file_path))[0],
+            "text": "\n".join(lines).strip(),
+            "metadata": {
+                "source_type": "json_document",
+            },
+        }
+    ]
+
+
+def _extract_pptx_slide_text(xml_bytes: bytes) -> list[str]:
+    namespace = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+    root = ElementTree.fromstring(xml_bytes)
+    texts = []
+    for node in root.findall(".//a:t", namespace):
+        value = (node.text or "").strip()
+        if value:
+            texts.append(value)
+    return texts
+
+
+def pptx_loader(file_path: str) -> list[dict]:
+    slide_records: list[dict] = []
+    file_stem = os.path.splitext(os.path.basename(file_path))[0]
+
+    with zipfile.ZipFile(file_path) as archive:
+        slide_names = []
+        for name in archive.namelist():
+            match = PPTX_SLIDE_RE.match(name)
+            if match:
+                slide_names.append((int(match.group(1)), name))
+
+        for slide_number, slide_name in sorted(slide_names):
+            slide_texts = _extract_pptx_slide_text(archive.read(slide_name))
+            if not slide_texts:
+                continue
+            title = slide_texts[0]
+            body = "\n\n".join(slide_texts).strip()
+            if not body:
+                continue
+            slide_records.append(
+                {
+                    "title": f"{file_stem} Slide {slide_number}",
+                    "text": body,
+                    "metadata": {
+                        "slide_number": slide_number,
+                        "slide_heading": title,
+                        "source_type": "pptx_slide",
+                    },
+                }
+            )
+
+    return slide_records
+
+
+def csv_loader(file_path: str, encoding: str = "utf-8-sig", delimiter: str = ",") -> list[dict]:
     rows: list[dict] = []
     with open(file_path, "r", encoding=encoding, newline="") as file:
-        reader = csv.DictReader(file)
+        reader = csv.DictReader(file, delimiter=delimiter)
         for row_number, row in enumerate(reader, start=1):
             lines = []
             for key, value in row.items():
@@ -235,7 +439,7 @@ def csv_loader(file_path: str, encoding: str = "utf-8-sig") -> list[dict]:
                     "text": "\n".join(lines).strip(),
                     "metadata": {
                         "row_number": row_number,
-                        "source_type": "csv_row",
+                        "source_type": "csv_row" if delimiter == "," else "tsv_row",
                     },
                 }
             )
@@ -247,20 +451,40 @@ def load_file_records(file_path: str) -> list[dict]:
     base_name = os.path.basename(file_path)
 
     try:
-        if extension in {".txt", ".md"}:
+        if extension in MARKDOWN_TYPES | {".txt"}:
             text = txt_loader(file_path)
             return [{"title": os.path.splitext(base_name)[0], "text": text, "metadata": {}}]
+        if extension in {".html", ".htm"}:
+            text = html_loader(file_path)
+            return [
+                {
+                    "title": os.path.splitext(base_name)[0],
+                    "text": text,
+                    "metadata": {"source_type": "html_document"},
+                }
+            ]
         if extension == ".pdf":
             return pdf_loader(file_path)
         if extension == ".docx":
             text = docx_loader(file_path)
-            return [{"title": os.path.splitext(base_name)[0], "text": text, "metadata": {}}]
+            return [
+                {
+                    "title": os.path.splitext(base_name)[0],
+                    "text": text,
+                    "metadata": {"source_type": "docx_document"},
+                }
+            ]
+        if extension == ".pptx":
+            return pptx_loader(file_path)
         if extension == ".csv":
             return csv_loader(file_path)
+        if extension == ".tsv":
+            return csv_loader(file_path, delimiter="\t")
+        if extension == ".json":
+            return json_loader(file_path)
     except Exception as exc:
         logger.exception("[文件加载] 读取 %s 失败: %s", file_path, exc)
         return []
 
     logger.warning("[文件加载] 暂不支持的文件类型: %s", file_path)
     return []
-

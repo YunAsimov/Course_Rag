@@ -8,7 +8,7 @@
 
 当前运行链路分为三部分：
 
-1. 文档处理：扫描 Markdown 资料，完成清洗、分段和切块。
+1. 文档处理：扫描课程资料文件，完成格式解析、清洗、分段和切块。
 2. 混合检索：同时执行 BM25 检索和 embedding 语义检索，再进行融合排序。
 3. 回答生成：优先调用 OpenAI 兼容接口生成答案；若远程模型不可用，则回退到本地摘要模式。
 
@@ -30,9 +30,9 @@
 ### 当前技术边界
 
 - 已实现的是 Hybrid Retrieval，不再是纯 BM25 基线
-- 但当前还没有接入独立的 vector DB
-- embedding 向量在启动时通过远程接口计算，并保存在内存中参与检索
-- 因此它属于“BM25 + in-memory embedding index”的混合检索实现，而不是“embedding + persistent vector DB”方案
+- 已接入本地持久化向量库 Chroma，用于保存 embedding 向量和集合索引
+- embedding 向量在首次构建或资料变更时通过远程接口计算，并落盘到 `storage/vector_store/chroma/`
+- 因此当前方案属于“BM25 + 持久化 Chroma 向量库”的混合检索实现，而不是仅内存 embedding 的临时方案
 
 ## 检索架构
 
@@ -45,7 +45,14 @@
 
 默认允许的文件类型目前为：
 
-- `.md`
+- `.md` / `.markdown`
+- `.txt`
+- `.pdf`
+- `.docx`
+- `.csv` / `.tsv`
+- `.json`
+- `.html` / `.htm`
+- `.pptx`
 
 切块相关参数位于 `config/chroma.yml`：
 
@@ -63,7 +70,7 @@
 - 标题与章节标题加权
 - 返回关键词匹配较强的候选 chunk
 
-### 3. Embedding 检索
+### 3. Embedding 检索与持久化向量库
 
 系统通过 OpenAI 兼容接口调用 embedding 模型：
 
@@ -75,8 +82,9 @@ embedding 检索流程如下：
 1. 将每个 chunk 序列化为检索文本
 2. 调用远程 embedding 接口生成向量
 3. 对向量做归一化
-4. 将 query 向量与 chunk 向量做余弦相似度计算
-5. 返回语义相关候选
+4. 将向量写入本地持久化 Chroma 集合
+5. 查询时将 query 向量提交给 Chroma 进行相似度召回
+6. 返回语义相关候选
 
 当前为了兼容 DashScope 接口，embedding 批量大小已限制为 `10`。
 
@@ -117,7 +125,7 @@ Hybrid Retrieval 使用 BM25 与 Embedding 并行召回，再通过融合排序�
 - `10` 份文档
 - `215` 个检索切片
 
-在启用 Hybrid Retrieval 时，启动阶段通常需要额外时间来完成 embedding 向量构建。
+在启用 Hybrid Retrieval 时，首次启动或资料变更后通常需要额外时间来完成 embedding 向量构建；后续重启会优先复用已落盘的 Chroma 向量集合，只同步新增、变更或删除的 chunk。
 
 ## 生成模式
 
@@ -280,6 +288,46 @@ RAG/
 - `course_rag/persistence/store.py`
   MySQL 用户、历史记录和资料元数据读写
 
+
+## 检索评测集
+
+项目现在包含一套基础检索评测集，用于评估当前检索后端对课程问题的 Top-k 召回能力。
+
+评测数据文件：
+
+- `eval/retrieval_eval_public.json`
+
+运行方式：
+
+```bash
+python run_retrieval_eval.py
+```
+
+若未激活虚拟环境，建议直接使用项目虚拟环境解释器：
+
+```powershell
+.\.venv\Scripts\python.exe run_retrieval_eval.py
+```
+
+可选参数：
+
+- `--dataset`：指定评测集文件
+- `--data-dir`：指定评测使用的数据目录
+- `--top-k`：指定评测时使用的 top-k
+- `--output`：指定结果 JSON 输出路径
+- `--show-passed`：打印所有样例结果
+
+默认会输出：
+
+- `Hit@1`
+- `Hit@3`
+- `Hit@k`
+- `MRR`
+
+并将完整评测结果写入：
+
+- `eval/results/retrieval_eval_latest.json`
+
 ## 1Panel 部署
 
 项目已经包含部署文件：
@@ -299,15 +347,15 @@ RAG/
 
 ## 当前局限
 
-- 向量索引未持久化，服务重启后需要重新生成 embedding
-- 启动时间会随资料数量和 embedding 网络延迟增长
-- 当前未接入独立向量数据库
+- 当前采用的是本地单机 Chroma 持久化向量库，还不是独立服务化的向量数据库集群
+- 首次建库或大规模资料变更时，启动时间仍会随资料数量和 embedding 网络延迟增长
+- 目前仍缺少更细粒度的增量索引策略
 - 自动化测试覆盖仍然不足
 
 ## 后续改进方向
 
-- 接入持久化 vector DB（如 Chroma / FAISS / pgvector）
-- 增量索引，仅为新增或变更资料重算 embedding
+- 将当前本地 Chroma 演进为更强的向量存储方案（如 pgvector 或服务化向量数据库）
+- 进一步细化增量索引，仅为新增或变更资料重算 embedding
 - 增加 rerank 层提升最终召回质量
 - 完善管理员侧用户与资料管理功能
 - 增加单元测试、接口测试和部署检查

@@ -450,6 +450,12 @@ a {
     line-height: 1.2;
 }
 
+.files-head-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .files-close-button {
     flex: 0 0 auto;
 }
@@ -598,7 +604,7 @@ a {
 }
 
 .status-row,
-.upload-toolbar,
+.topbar-actions,
 .suggestions,
 .source-meta,
 .inline-source-meta {

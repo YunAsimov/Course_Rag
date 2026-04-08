@@ -1,0 +1,119 @@
+{
+  "name": "course_public_retrieval_eval",
+  "description": "公共课程资料检索评测集，用于评估 Top-k 召回是否命中预期 lecture/note 来源。",
+  "data_dir": "data/course",
+  "default_top_k": 5,
+  "cases": [
+    {
+      "id": "schedule_time_location",
+      "category": "course_admin",
+      "question": "上课时间和地点是什么？",
+      "expected_source_suffixes": [
+        "Lecture 1.md"
+      ],
+      "notes": "应命中课程安排部分。"
+    },
+    {
+      "id": "skyline_query_definition",
+      "category": "multi_dimensional_decision",
+      "question": "什么是 Skyline Query？",
+      "expected_source_suffixes": [
+        "Lecture 2.md"
+      ],
+      "notes": "应命中天际线查询定义。"
+    },
+    {
+      "id": "covariance_vs_correlation",
+      "category": "numeric_similarity",
+      "question": "协方差和相关系数有什么区别？",
+      "expected_source_suffixes": [
+        "Lecture 3.md",
+        "Note.md"
+      ],
+      "notes": "Lecture 3 与 Note 都可接受。"
+    },
+    {
+      "id": "entity_resolution_vs_linking",
+      "category": "information_extraction",
+      "question": "实体解析和实体链接有什么区别？",
+      "expected_source_suffixes": [
+        "Lecture 4.md",
+        "Note.md"
+      ],
+      "notes": "Lecture 4 与 Note 都可接受。"
+    },
+    {
+      "id": "knowledge_graph_triplet",
+      "category": "llm_foundations",
+      "question": "知识图谱里的三元组是什么？",
+      "expected_source_suffixes": [
+        "Lecture 5.md"
+      ],
+      "notes": "应命中 Lecture 5 的知识图谱回顾。"
+    },
+    {
+      "id": "budget_forcing",
+      "category": "llm_scaling",
+      "question": "Budget Forcing 是什么？",
+      "expected_source_suffixes": [
+        "Lecture 7.md"
+      ],
+      "notes": "应命中 s1 模型和测试时缩放部分。"
+    },
+    {
+      "id": "rag_basic_flow",
+      "category": "rag",
+      "question": "RAG 的基本执行流程是什么？",
+      "expected_source_suffixes": [
+        "Lecture 8.md"
+      ],
+      "notes": "应命中 Lecture 8 对 RAG 五步流程的总结。"
+    },
+    {
+      "id": "cosine_distance_formula",
+      "category": "vector_similarity",
+      "question": "余弦距离公式是什么？",
+      "expected_source_suffixes": [
+        "Lecture 9.md"
+      ],
+      "notes": "应命中 Lecture 9 的余弦距离公式表格。"
+    },
+    {
+      "id": "gcn_core_idea",
+      "category": "gnn",
+      "question": "GCN 的核心思想是什么？",
+      "expected_source_suffixes": [
+        "Lecture 11.md"
+      ],
+      "notes": "应命中 GCN 的消息传递与邻居聚合。"
+    },
+    {
+      "id": "why_text_cosine",
+      "category": "text_similarity",
+      "question": "为什么文本数据通常使用余弦相似度？",
+      "expected_source_suffixes": [
+        "Note.md",
+        "Lecture 1.md"
+      ],
+      "notes": "Note 与 Lecture 1 都可接受。"
+    },
+    {
+      "id": "kmeanspp_initialization",
+      "category": "clustering",
+      "question": "K-Means++ 的初始化步骤是什么？",
+      "expected_source_suffixes": [
+        "Note.md"
+      ],
+      "notes": "当前整理版资料中主要来自 Note。"
+    },
+    {
+      "id": "k_dominant_skyline",
+      "category": "multi_dimensional_decision",
+      "question": "什么是 k-Dominant Skyline？",
+      "expected_source_suffixes": [
+        "Lecture 2.md"
+      ],
+      "notes": "应命中 Lecture 2 的进阶变体部分。"
+    }
+  ]
+}

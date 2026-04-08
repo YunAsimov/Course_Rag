@@ -39,13 +39,9 @@
                     <div class="status-row">
                         <span id="status-backend" class="status-pill">检索 {{ stats.backend }}</span>
                         <span id="status-model" class="status-pill">{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
-                        <span class="status-pill">支持 {{ allowed_extensions_label }}</span>
                     </div>
-                    <div class="upload-toolbar">
-                        <input id="upload-input" type="file" accept="{{ allowed_extensions_label }}" multiple hidden>
+                    <div class="topbar-actions">
                         <button id="files-button" class="ghost-button" type="button">查看文件</button>
-                        <button id="upload-button" class="ghost-button" type="button">上传资料</button>
-                        <span class="upload-hint">上传后会自动刷新知识库</span>
                     </div>
                     <div class="session-toolbar">
                         <div class="session-inline">
@@ -111,7 +107,11 @@
                     <p class="eyebrow">Files</p>
                     <h3 id="files-title" class="files-title">当前资料文件</h3>
                 </div>
-                <button id="files-close" class="ghost-button files-close-button" type="button" aria-label="关闭文件面板">关闭</button>
+                <div class="files-head-actions">
+                    <input id="upload-input" type="file" accept="{{ allowed_extensions_label }}" multiple hidden>
+                    <button id="upload-button" class="ghost-button" type="button">上传资料</button>
+                    <button id="files-close" class="ghost-button files-close-button" type="button" aria-label="关闭文件面板">关闭</button>
+                </div>
             </div>
             <div class="files-drawer-meta">
                 <span id="files-count" class="status-pill">0 个文件</span>

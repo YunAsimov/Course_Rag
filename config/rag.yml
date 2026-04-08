@@ -7,6 +7,16 @@ user_materials_root: storage/materials
 bootstrap_owner: lyy
 allowed_extensions:
   - .md
+  - .markdown
+  - .txt
+  - .pdf
+  - .docx
+  - .csv
+  - .tsv
+  - .json
+  - .html
+  - .htm
+  - .pptx
 chat_model_name: qwen3-max
 embedding_model_name: text-embedding-v4
 

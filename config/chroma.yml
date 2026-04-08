@@ -1,4 +1,8 @@
 backend: hybrid_bm25_embedding
+vector_store_backend: chroma
+vector_store_dir: storage/vector_store/chroma
+vector_collection_prefix: course_rag
+vector_store_sync_batch_size: 100
 chunk_size: 420
 chunk_overlap: 80
 top_k: 4

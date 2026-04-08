@@ -1,4 +1,7 @@
+import hashlib
+import json
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Optional
@@ -14,12 +17,13 @@ from course_rag.core.logger_handler import logger
 from course_rag.core.path_tool import get_abs_path
 from course_rag.services.rag_chunking import chunk_document
 from course_rag.services.rag_generator import AnswerGenerator
-from course_rag.services.rag_models import Document
+from course_rag.services.rag_models import Chunk, Document
 from course_rag.services.rag_retriever import (
     BM25Retriever,
     EmbeddingRetriever,
     HybridRetriever,
     OpenAICompatibleEmbeddingClient,
+    PersistentChromaEmbeddingRetriever,
 )
 
 
@@ -33,6 +37,8 @@ class RAGService:
         configured_dir = data_dir or self.rag_conf["data_dir"]
         self.data_dir = self._resolve_data_dir(configured_dir)
         self.allowed_extensions = tuple(self.rag_conf["allowed_extensions"])
+        self.vector_store_dir = self._resolve_vector_store_dir()
+        self.index_cache_dir = self._resolve_index_cache_dir()
 
         self.documents: list[Document] = []
         self.chunks = []
@@ -50,6 +56,12 @@ class RAGService:
             "remote_llm_enabled": bool(self.agent_conf.get("enabled")),
             "embedding_model_name": self.rag_conf.get("embedding_model_name", ""),
             "embedding_retrieval_ready": False,
+            "vector_store_backend": str(self.retrieval_conf.get("vector_store_backend", "none") or "none").strip().lower(),
+            "vector_store_dir": self.vector_store_dir,
+            "vector_collection_name": self._vector_collection_name(),
+            "index_cache_hit": False,
+            "bm25_cache_hit": False,
+            "source_signature": "",
             "status": "indexing" if build_async else "idle",
             "ready": False,
             "indexing": bool(build_async),
@@ -86,10 +98,135 @@ class RAGService:
         except ValueError:
             return self.data_dir
 
-    def _build_retriever(self, chunks: list):
+    def _resolve_vector_store_dir(self) -> str:
+        configured_dir = str(self.retrieval_conf.get("vector_store_dir", "storage/vector_store/chroma"))
+        candidate = Path(configured_dir)
+        if candidate.is_absolute():
+            return str(candidate.resolve())
+        return str(Path(get_abs_path(configured_dir)).resolve())
+
+    def _vector_collection_name(self) -> str:
+        raw_prefix = str(self.retrieval_conf.get("vector_collection_prefix", "course_rag")).strip().lower()
+        prefix = re.sub(r"[^a-z0-9_-]+", "_", raw_prefix) or "course_rag"
+        data_stem = re.sub(r"[^a-z0-9_-]+", "_", Path(self.data_dir).stem.lower()) or "data"
+        data_hash = hashlib.md5(self.data_dir.encode("utf-8")).hexdigest()[:12]
+        return f"{prefix}_{data_stem}_{data_hash}"
+
+
+    def _resolve_index_cache_dir(self) -> str:
+        return str(Path(get_abs_path("storage/index_cache")).resolve())
+
+    def _index_snapshot_path(self) -> Path:
+        data_hash = hashlib.md5(self.data_dir.encode("utf-8")).hexdigest()[:12]
+        return Path(self.index_cache_dir) / f"{data_hash}.json"
+
+    def _build_source_manifest(self, file_paths: list[str]) -> list[dict]:
+        project_root = Path(get_abs_path(".")).resolve()
+        manifest: list[dict] = []
+        for file_path in sorted(file_paths):
+            stat = os.stat(file_path)
+            manifest.append(
+                {
+                    "path": os.path.relpath(file_path, project_root).replace("\\", "/"),
+                    "size": int(stat.st_size),
+                    "mtime_ns": int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+                }
+            )
+        manifest.sort(key=lambda item: item["path"])
+        return manifest
+
+    def _build_source_signature(self, manifest: list[dict]) -> str:
+        payload = {
+            "snapshot_version": 1,
+            "manifest": manifest,
+            "chunk_size": self.retrieval_conf["chunk_size"],
+            "chunk_overlap": self.retrieval_conf["chunk_overlap"],
+            "allowed_extensions": sorted(self.allowed_extensions),
+        }
+        raw_text = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.md5(raw_text.encode("utf-8")).hexdigest()
+
+    def _load_index_snapshot(self, source_signature: str) -> Optional[tuple[list[Document], list[Chunk], Optional[dict]]]:
+        snapshot_path = self._index_snapshot_path()
+        if not snapshot_path.is_file():
+            return None
+        try:
+            payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("[索引] 读取索引快照失败，转为实时构建: %s", exc)
+            return None
+
+        if payload.get("source_signature") != source_signature:
+            return None
+
+        try:
+            documents = [
+                Document(
+                    doc_id=str(item["doc_id"]),
+                    title=str(item["title"]),
+                    source_path=str(item["source_path"]),
+                    doc_type=str(item["doc_type"]),
+                    text=str(item["text"]),
+                    metadata=dict(item.get("metadata") or {}),
+                )
+                for item in payload.get("documents", [])
+            ]
+            chunks = [
+                Chunk(
+                    chunk_id=str(item["chunk_id"]),
+                    doc_id=str(item["doc_id"]),
+                    title=str(item["title"]),
+                    source_path=str(item["source_path"]),
+                    text=str(item["text"]),
+                    order=int(item.get("order") or 0),
+                    metadata=dict(item.get("metadata") or {}),
+                )
+                for item in payload.get("chunks", [])
+            ]
+        except Exception as exc:
+            logger.warning("[索引] 索引快照格式无效，转为实时构建: %s", exc)
+            return None
+
+        return documents, chunks, payload.get("bm25_state")
+
+    def _save_index_snapshot(self, source_signature: str, documents: list[Document], chunks: list[Chunk], bm25_state: Optional[dict]) -> None:
+        snapshot_path = self._index_snapshot_path()
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "source_signature": source_signature,
+            "documents": [
+                {
+                    "doc_id": document.doc_id,
+                    "title": document.title,
+                    "source_path": document.source_path,
+                    "doc_type": document.doc_type,
+                    "text": document.text,
+                    "metadata": document.metadata,
+                }
+                for document in documents
+            ],
+            "chunks": [
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "doc_id": chunk.doc_id,
+                    "title": chunk.title,
+                    "source_path": chunk.source_path,
+                    "text": chunk.text,
+                    "order": int(chunk.order),
+                    "metadata": chunk.metadata,
+                }
+                for chunk in chunks
+            ],
+            "bm25_state": bm25_state or {},
+        }
+        snapshot_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    def _build_retriever(self, chunks: list, skip_vector_sync: bool = False, bm25_state: Optional[dict] = None):
         requested_backend = str(self.retrieval_conf["backend"] or "local_bm25").strip().lower()
-        bm25_retriever = BM25Retriever(chunks, title_boost=self.retrieval_conf["title_boost"])
-        embedding_retriever: Optional[EmbeddingRetriever] = None
+        vector_store_backend = str(self.retrieval_conf.get("vector_store_backend", "chroma") or "chroma").strip().lower()
+        bm25_retriever = BM25Retriever(chunks, title_boost=self.retrieval_conf["title_boost"], cached_state=bm25_state)
+        embedding_retriever: Optional[object] = None
+        vector_collection_name = self._vector_collection_name()
 
         if requested_backend in {"hybrid_bm25_embedding", "hybrid", "embedding_only", "remote_embedding"}:
             embedding_client = OpenAICompatibleEmbeddingClient(
@@ -99,11 +236,32 @@ class RAGService:
                 timeout_seconds=self.agent_conf.get("timeout_seconds", 30),
                 batch_size=self.retrieval_conf["embedding_batch_size"],
             )
-            embedding_retriever = EmbeddingRetriever(
-                chunks,
-                embedding_client,
-                min_score=self.retrieval_conf["embedding_min_score"],
-            )
+            if vector_store_backend in {"chroma", "persistent_chroma"}:
+                embedding_retriever = PersistentChromaEmbeddingRetriever(
+                    chunks,
+                    embedding_client,
+                    persist_directory=self.vector_store_dir,
+                    collection_name=vector_collection_name,
+                    min_score=self.retrieval_conf["embedding_min_score"],
+                    sync_batch_size=self.retrieval_conf["vector_store_sync_batch_size"],
+                    skip_sync=skip_vector_sync,
+                )
+                if not embedding_retriever.is_ready:
+                    logger.warning(
+                        "[索引] Chroma 持久化向量库未就绪，尝试回退到内存 embedding: %s",
+                        getattr(embedding_retriever, "failure_reason", "unknown_error"),
+                    )
+                    embedding_retriever = EmbeddingRetriever(
+                        chunks,
+                        embedding_client,
+                        min_score=self.retrieval_conf["embedding_min_score"],
+                    )
+            else:
+                embedding_retriever = EmbeddingRetriever(
+                    chunks,
+                    embedding_client,
+                    min_score=self.retrieval_conf["embedding_min_score"],
+                )
 
         if requested_backend in {"embedding_only", "remote_embedding"}:
             if embedding_retriever and embedding_retriever.is_ready:
@@ -128,56 +286,76 @@ class RAGService:
             "actual_backend": getattr(retriever, "backend_name", requested_backend),
             "embedding_model_name": self.rag_conf.get("embedding_model_name", ""),
             "embedding_retrieval_ready": bool(embedding_retriever and embedding_retriever.is_ready),
+            "bm25_cache_hit": bool(getattr(bm25_retriever, "cache_hit", False)),
+            "bm25_state": bm25_retriever.export_state(),
             "embedding_failure_reason": getattr(embedding_retriever, "failure_reason", ""),
+            "vector_store_backend": getattr(embedding_retriever, "vector_store_backend", "none"),
+            "vector_store_dir": self.vector_store_dir,
+            "vector_collection_name": vector_collection_name if embedding_retriever else "",
+            "vector_sync_stats": getattr(embedding_retriever, "sync_stats", {}),
         }
 
     def _collect_index_data(self) -> tuple[list[Document], list, object, dict]:
         logger.info("[索引] 开始构建知识库索引: %s", self.data_dir)
         file_paths = listdir_with_allowed_type(self.data_dir, self.allowed_extensions)
+        source_manifest = self._build_source_manifest(file_paths)
+        source_signature = self._build_source_signature(source_manifest)
 
-        doc_count = 0
-        chunk_count = 0
-        documents: list[Document] = []
-        chunks = []
+        snapshot = self._load_index_snapshot(source_signature)
+        index_cache_hit = snapshot is not None
+        bm25_state = None
+        if snapshot:
+            documents, chunks, bm25_state = snapshot
+            doc_count = len(documents)
+            chunk_count = len(chunks)
+            logger.info("[索引] 文件未变化，复用本地索引快照: %s", self._index_snapshot_path())
+        else:
+            doc_count = 0
+            chunk_count = 0
+            documents = []
+            chunks = []
 
-        for file_path in file_paths:
-            relative_path = os.path.relpath(file_path, get_abs_path("."))
-            records = load_file_records(file_path)
-            file_hash = get_md5_file_hex(file_path)
-            file_has_chunks = False
+            for file_path in file_paths:
+                relative_path = os.path.relpath(file_path, get_abs_path("."))
+                records = load_file_records(file_path)
+                file_hash = get_md5_file_hex(file_path)
+                file_has_chunks = False
 
-            for record_index, record in enumerate(records, start=1):
-                text = (record.get("text") or "").strip()
-                if not text:
-                    continue
+                for record_index, record in enumerate(records, start=1):
+                    text = (record.get("text") or "").strip()
+                    if not text:
+                        continue
 
-                metadata = record.get("metadata", {}).copy()
-                metadata.update({"md5": file_hash})
-                document = Document(
-                    doc_id=f"{Path(file_path).stem}-{record_index}",
-                    title=record.get("title") or Path(file_path).stem,
-                    source_path=relative_path,
-                    doc_type=Path(file_path).suffix.lower(),
-                    text=text,
-                    metadata=metadata,
-                )
-                document_chunks = chunk_document(
-                    document,
-                    chunk_size=self.retrieval_conf["chunk_size"],
-                    chunk_overlap=self.retrieval_conf["chunk_overlap"],
-                )
-                if not document_chunks:
-                    continue
+                    metadata = record.get("metadata", {}).copy()
+                    metadata.update({"md5": file_hash})
+                    document = Document(
+                        doc_id=f"{Path(file_path).stem}-{record_index}",
+                        title=record.get("title") or Path(file_path).stem,
+                        source_path=relative_path,
+                        doc_type=Path(file_path).suffix.lower(),
+                        text=text,
+                        metadata=metadata,
+                    )
+                    document_chunks = chunk_document(
+                        document,
+                        chunk_size=self.retrieval_conf["chunk_size"],
+                        chunk_overlap=self.retrieval_conf["chunk_overlap"],
+                    )
+                    if not document_chunks:
+                        continue
 
-                documents.append(document)
-                chunks.extend(document_chunks)
-                chunk_count += len(document_chunks)
-                file_has_chunks = True
+                    documents.append(document)
+                    chunks.extend(document_chunks)
+                    chunk_count += len(document_chunks)
+                    file_has_chunks = True
 
-            if file_has_chunks:
-                doc_count += 1
+                if file_has_chunks:
+                    doc_count += 1
 
-        retriever, retrieval_status = self._build_retriever(chunks)
+        retriever, retrieval_status = self._build_retriever(chunks, skip_vector_sync=index_cache_hit, bm25_state=bm25_state)
+
+        if (not index_cache_hit) or (index_cache_hit and not retrieval_status["bm25_cache_hit"]):
+            self._save_index_snapshot(source_signature, documents, chunks, retrieval_status["bm25_state"])
         index_summary = {
             "documents": doc_count,
             "chunks": chunk_count,
@@ -187,6 +365,13 @@ class RAGService:
             "remote_llm_enabled": bool(self.agent_conf.get("enabled")),
             "embedding_model_name": retrieval_status["embedding_model_name"],
             "embedding_retrieval_ready": retrieval_status["embedding_retrieval_ready"],
+            "vector_store_backend": retrieval_status["vector_store_backend"],
+            "vector_store_dir": retrieval_status["vector_store_dir"],
+            "vector_collection_name": retrieval_status["vector_collection_name"],
+            "vector_sync_stats": retrieval_status["vector_sync_stats"],
+            "index_cache_hit": index_cache_hit,
+            "bm25_cache_hit": retrieval_status["bm25_cache_hit"],
+            "source_signature": source_signature,
         }
         if retrieval_status["embedding_failure_reason"]:
             index_summary["embedding_failure_reason"] = retrieval_status["embedding_failure_reason"]

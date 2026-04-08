@@ -1001,7 +1001,7 @@ async function deleteMaterialFile(path, name) {
 }
 
 async function uploadMaterials(files) {
-    if (!uploadButton || !uploadInput || !files.length) {
+    if (!uploadButton || !uploadInput || !Array.isArray(files) || !files.length) {
         return;
     }
 
