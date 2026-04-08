@@ -1,49 +1,155 @@
 # Course RAG
 
-一个面向课程讲义、笔记和参考资料的轻量 RAG Web 项目。项目当前支持 Hybrid Retrieval（BM25 + Embedding）混合检索、可选远程大模型生成、按用户隔离的资料目录，以及 MySQL 持久化用户与历史记录。
+一个面向课程讲义、笔记和参考资料的课程问答 Web 系统。当前版本已经实现多用户资料隔离、MySQL 持久化、Hybrid Retrieval（BM25 + Embedding）、可选远程大模型生成，以及适配 1Panel 的部署方案。
 
-## 功能
+## 项目概述
 
-- 默认索引 `data/course` 下的 Markdown 课程资料
-- 使用 Hybrid Retrieval 构建可运行的 RAG 检索基线
-- 其中包含本地 BM25 召回与基于 OpenAI 兼容接口的 embedding 语义召回
-- 若 embedding 所需配置不可用，会自动回退到 BM25 模式
-- 可选接入 OpenAI 兼容接口进行远程生成
-- 提供 Flask Web 问答界面，展示答案和来源片段
-- 不同用户拥有各自独立的资料目录，互不共享上传文件
-- 账号、历史记录和资料元数据持久化到 MySQL `course_rag`
+系统围绕课程资料构建问答能力，核心目标是让用户围绕讲义、课堂笔记和补充资料进行基于证据的提问，而不是依赖通用模型进行无依据生成。
 
-## 快速启动
+当前运行链路分为三部分：
 
-1. 安装依赖
+1. 文档处理：扫描 Markdown 资料，完成清洗、分段和切块。
+2. 混合检索：同时执行 BM25 检索和 embedding 语义检索，再进行融合排序。
+3. 回答生成：优先调用 OpenAI 兼容接口生成答案；若远程模型不可用，则回退到本地摘要模式。
 
-```bash
-python -m pip install -r requirements.txt
-```
+## 当前实现状态
 
-2. 启动应用
+### 已完成
 
-```bash
-python app.py
-```
+- 基于 Flask 的课程问答 Web 应用
+- 登录、退出、历史记录查看与删除
+- 用户级资料目录隔离：`storage/materials/<username>/`
+- 文件上传、查看、删除与索引刷新
+- MySQL 持久化：用户、历史记录、资料元数据
+- Hybrid Retrieval：BM25 + Embedding
+- Embedding 检索失败时自动回退到 BM25
+- 远程大模型生成与本地摘要回退
+- 启动阶段“知识库索引构建中”前端提示
+- Docker / Gunicorn / 1Panel 部署支持
 
-3. 打开浏览器
+### 当前技术边界
 
-访问 `http://127.0.0.1:7860`
+- 已实现的是 Hybrid Retrieval，不再是纯 BM25 基线
+- 但当前还没有接入独立的 vector DB
+- embedding 向量在启动时通过远程接口计算，并保存在内存中参与检索
+- 因此它属于“BM25 + in-memory embedding index”的混合检索实现，而不是“embedding + persistent vector DB”方案
 
-## 启用远程模型与 embedding 检索
+## 检索架构
 
-默认配置下，项目会优先尝试 Hybrid Retrieval；若缺少 key 或远程 embedding 不可用，则回退到 BM25。若要完整启用远程能力：
+### 1. 文档加载与切块
 
-1. 在 `config/agent.yml` 中把 `enabled` 改为 `true`
-2. 在项目根目录创建 `.env.local`，至少包含 `OPENAI_API_KEY`
-3. 如需覆盖默认地址，可在 `.env.local` 中配置 `OPENAI_BASE_URL`
-4. 如有需要，修改 `model_name`
-5. 如需调整 embedding 模型名，可修改 `config/rag.yml` 中的 `embedding_model_name`
+资料目录分为两类：
 
-## MySQL 存储
+- `data/course/`：公共课程资料，仅用于未登录状态下的启动页统计与默认公共索引
+- `storage/materials/<username>/`：当前用户私有资料，用户登录后的问答、文件管理和索引都基于这里
 
-项目默认从根目录 `.env.local` 读取数据库配置：
+默认允许的文件类型目前为：
+
+- `.md`
+
+切块相关参数位于 `config/chroma.yml`：
+
+- `chunk_size: 420`
+- `chunk_overlap: 80`
+- `top_k: 4`
+- `candidate_top_k: 12`
+
+### 2. BM25 检索
+
+本地 BM25 检索负责：
+
+- 中英文轻量分词
+- 词频与逆文档频率统计
+- 标题与章节标题加权
+- 返回关键词匹配较强的候选 chunk
+
+### 3. Embedding 检索
+
+系统通过 OpenAI 兼容接口调用 embedding 模型：
+
+- 默认模型：`text-embedding-v4`
+- 默认接口：`https://dashscope.aliyuncs.com/compatible-mode/v1`
+
+embedding 检索流程如下：
+
+1. 将每个 chunk 序列化为检索文本
+2. 调用远程 embedding 接口生成向量
+3. 对向量做归一化
+4. 将 query 向量与 chunk 向量做余弦相似度计算
+5. 返回语义相关候选
+
+当前为了兼容 DashScope 接口，embedding 批量大小已限制为 `10`。
+
+### 4. 融合策略
+
+Hybrid Retrieval 使用 BM25 与 Embedding 并行召回，再通过融合排序合并结果。当前实现采用基于排名的融合方法，主要参数包括：
+
+- `bm25_weight`
+- `embedding_weight`
+- `rrf_k`
+- `candidate_top_k`
+
+最终检索后端在健康检查接口中可见：
+
+- `local_bm25`
+- `hybrid_bm25_embedding`
+
+其中：
+
+- `hybrid_bm25_embedding` 表示 BM25 与 embedding 都已可用
+- `local_bm25` 表示当前配置虽然允许混合检索，但 embedding 配置缺失或远程请求失败，系统已自动回退到 BM25
+
+## 启动与索引机制
+
+当前版本已经把索引构建改为异步后台执行：
+
+- 服务会先启动并监听 `127.0.0.1:7860`
+- 前端在登录页和主页面显示“知识库索引构建中”提示
+- 后端 `/api/health` 会返回：
+  - `status`
+  - `ready`
+  - `indexing`
+  - `message`
+- 索引完成后，前端自动恢复登录与提问能力
+
+对于默认公共课程资料，当前本地环境下大约会构建：
+
+- `10` 份文档
+- `215` 个检索切片
+
+在启用 Hybrid Retrieval 时，启动阶段通常需要额外时间来完成 embedding 向量构建。
+
+## 生成模式
+
+回答生成支持三种运行结果：
+
+- `remote_llm`：远程大模型成功生成
+- `local_summary`：远程模型不可用时由本地摘要器组织答案
+- `no_context`：当前知识库中没有足够相关资料
+- `indexing`：索引尚未构建完成，系统提示稍后再问
+
+## 多用户与数据隔离
+
+系统按用户隔离以下内容：
+
+- 资料目录
+- 历史记录
+- 资料元数据
+- 用户视角下的知识库索引
+
+这意味着不同用户即使提问同样的问题，只要资料目录不同，结果就可能不同。
+
+当前登录页已经关闭自助注册。新增用户需要由管理员通过数据库或管理脚本创建账号。
+
+## MySQL 持久化
+
+系统使用 MySQL `course_rag` 数据库保存：
+
+- `users`
+- `history`
+- `user_materials`
+
+数据库连接参数从 `.env.local` 读取，例如：
 
 - `MYSQL_HOST`
 - `MYSQL_PORT`
@@ -51,18 +157,99 @@ python app.py
 - `MYSQL_PASSWORD`
 - `MYSQL_DATABASE`
 
-当前实现会在启动时自动创建 `course_rag` 数据库和所需表结构。
+其中用户密码以哈希形式存储，运行时不会以明文保存在数据库中。
 
-## 目录结构
+## 本地运行
+
+### 1. 安装依赖
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+### 2. 配置 `.env.local`
+
+示例：
+
+```env
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_API_KEY=your_api_key
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=course_rag
+```
+
+### 3. 启动应用
+
+```bash
+python app.py
+```
+
+### 4. 打开页面
+
+```text
+http://127.0.0.1:7860
+```
+
+## 健康检查
+
+访问：
+
+```text
+GET /api/health
+```
+
+索引构建中时会返回类似：
+
+```json
+{
+  "backend": "initializing",
+  "chunks": 0,
+  "documents": 0,
+  "indexing": true,
+  "message": "知识库索引构建中，请稍候。",
+  "ready": false,
+  "status": "indexing"
+}
+```
+
+索引完成后会返回类似：
+
+```json
+{
+  "backend": "hybrid_bm25_embedding",
+  "chunks": 215,
+  "documents": 10,
+  "indexing": false,
+  "message": "知识库已准备就绪。",
+  "ready": true,
+  "status": "ok"
+}
+```
+
+说明：
+
+- 未登录访问 `/api/health` 时，返回的是公共资料目录 `data/course/` 的状态
+- 登录后访问 `/api/health` 时，返回的是当前用户私有资料目录的状态
+- 因此不同用户看到的 `documents`、`chunks` 和 `backend` 可能不同
+
+## 项目结构
 
 ```text
 RAG/
 ├─ app.py
 ├─ run_app_latest.py
 ├─ requirements.txt
+├─ Dockerfile
+├─ gunicorn.conf.py
+├─ README.md
+├─ report.md
 ├─ config/
 ├─ data/course/
 ├─ storage/materials/<username>/
+├─ deploy/1panel/
 └─ course_rag/
    ├─ __init__.py
    ├─ web.py
@@ -75,23 +262,27 @@ RAG/
 
 ## 关键模块
 
-- `course_rag/web.py`: Flask 路由、登录态和上传/问答接口
-- `course_rag/core/`: 配置、路径、日志和文件加载
-- `course_rag/services/`: 检索、切块、生成和用户索引管理
-- `course_rag/persistence/store.py`: MySQL 用户、历史和资料元数据存储
-- `course_rag/templates/`: 页面模板
-- `course_rag/static/`: 前端 CSS/JS 资源
+- `course_rag/web.py`
+  Flask 路由、登录态、文件管理和健康检查接口
 
-## 当前实现说明
+- `course_rag/core/config_handler.py`
+  YAML 配置、默认配置、本地环境变量读取
 
-- 检索阶段使用 Hybrid Retrieval：BM25 与 embedding 召回并行，再通过融合排序合并结果
-- 若 embedding 所需的远程配置缺失，系统会自动退回到纯 BM25 检索
-- 生成阶段若未开启远程大模型或远程调用失败，则答案由本地摘要器根据检索片段生成
-- 资料文件按用户隔离在 `storage/materials/<username>/`
+- `course_rag/services/rag_service.py`
+  用户级 RAG 服务管理、异步索引构建、问答主流程
+
+- `course_rag/services/rag_retriever.py`
+  BM25、EmbeddingRetriever、HybridRetriever
+
+- `course_rag/services/rag_generator.py`
+  远程生成与本地摘要回退
+
+- `course_rag/persistence/store.py`
+  MySQL 用户、历史记录和资料元数据读写
 
 ## 1Panel 部署
 
-项目已经补好了容器化部署文件，适合直接放到 1Panel。
+项目已经包含部署文件：
 
 - `Dockerfile`
 - `gunicorn.conf.py`
@@ -99,4 +290,24 @@ RAG/
 - `deploy/1panel/.env.example`
 - `deploy/1panel/README.md`
 
-推荐使用 1Panel 的 `容器 -> 编排` 导入 `deploy/1panel/docker-compose.yml`，然后再用 `网站 -> 创建网站 -> 反向代理` 把域名代理到 `127.0.0.1:17860`。
+推荐部署方式：
+
+1. 用 1Panel 编排导入 `deploy/1panel/docker-compose.yml`
+2. 启动 `app + mysql` 容器
+3. 用 1Panel 网站模块创建反向代理
+4. 将外部请求代理到 `127.0.0.1:17860`
+
+## 当前局限
+
+- 向量索引未持久化，服务重启后需要重新生成 embedding
+- 启动时间会随资料数量和 embedding 网络延迟增长
+- 当前未接入独立向量数据库
+- 自动化测试覆盖仍然不足
+
+## 后续改进方向
+
+- 接入持久化 vector DB（如 Chroma / FAISS / pgvector）
+- 增量索引，仅为新增或变更资料重算 embedding
+- 增加 rerank 层提升最终召回质量
+- 完善管理员侧用户与资料管理功能
+- 增加单元测试、接口测试和部署检查

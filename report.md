@@ -1,23 +1,25 @@
-# COMP5575 Course RAG
+# Course RAG
 
 ## 课程项目报告
 
 **课程名称：** COMP5575 High-Dimensional Data Management and Analytics  
-**项目名称：** Course RAG: 基于课程资料的检索增强问答系统  
+**项目名称：** Course RAG：基于课程资料的混合检索增强问答系统  
 **项目类型：** 课程项目 / 系统实现报告  
-**提交形式：** Markdown 项目报告  
+**提交形式：** Markdown 项目报告
 
 ---
 
 ## 摘要
 
-本项目围绕课程讲义、课堂笔记和参考资料，设计并实现了一个面向课程场景的检索增强问答系统。系统以 Markdown 课程资料为核心知识源，当前采用本地 BM25 风格检索器完成资料召回，同时在配置层预留了基于 embedding 的向量化扩展能力，用于后续接入语义检索。在生成阶段，系统支持两种回答模式：一是通过 OpenAI 兼容接口调用远程大模型进行生成，二是在远程模型不可用时回退到本地摘要模式，从而保证系统在不同运行环境下都具备基本可用性。为了满足实际使用需求，项目进一步实现了 Web 交互界面、多用户登录、用户级资料隔离、历史记录管理、文件上传与删除、MySQL 持久化以及 1Panel 容器化部署支持。
+本项目实现了一个面向课程讲义、课堂笔记和补充资料的课程问答系统。系统采用检索增强生成思路，将课程资料切分为多个文本片段，在回答问题前先从知识库中检索相关内容，再结合远程大模型或本地摘要模块生成回答。与早期仅使用 BM25 的检索基线不同，当前版本已经升级为 Hybrid Retrieval，即同时使用 BM25 词项检索和 embedding 语义检索，再通过融合排序得到最终候选结果。这样既能保留关键词匹配的稳定性，也能增强对语义相近但词面不同问法的适应能力。
 
-从工程实现角度看，本项目不仅完成了课程问答原型的构建，还覆盖了从数据组织、检索与生成逻辑、前后端交互、数据库设计，到部署上线的完整链路。系统当前已经能够支持用户围绕课程资料进行基于证据的提问，并以可解释的方式返回答案和来源信息。报告重点讨论了课程资料在 RAG 场景中的向量化思路，包括文档切块、embedding 表示、相似度计算、向量召回与语义增强路径；同时也明确指出，当前运行版本仍以 BM25 基线为主，embedding 向量检索尚处于预留与可扩展阶段。尽管远程模型状态展示和自动化测试体系仍有优化空间，但项目已经较完整地体现了 RAG 系统在课程资料场景中的落地过程，并具备继续扩展为更强语义检索系统的基础。
+系统当前支持多用户登录、用户级资料目录隔离、历史记录管理、文件上传与删除、MySQL 持久化，以及 1Panel 容器化部署。针对混合检索带来的启动耗时问题，项目进一步将索引构建改为异步后台执行，并在前端加入“知识库索引构建中”的状态提示，使页面能够先于完整索引构建过程启动。当前实现已经形成从数据组织、检索、生成、前后端交互、数据库持久化到部署上线的完整工程闭环。
+
+需要明确的是，本项目当前虽然已经实现 embedding 检索并与 BM25 融合，但尚未接入独立的向量数据库。embedding 向量由远程接口在服务启动阶段生成，并保存在内存中参与召回。因此，系统属于“BM25 + in-memory embedding index”的混合检索实现，而不是“embedding + persistent vector DB”的最终生产形态。这也是项目现阶段的主要工程边界和后续优化重点。
 
 ## 关键词
 
-RAG；课程资料问答；文本向量化；Embedding；BM25 检索；多用户资料隔离；MySQL 持久化
+RAG；课程资料问答；Hybrid Retrieval；BM25；Embedding；向量化；多用户隔离；MySQL 持久化
 
 ---
 
@@ -25,25 +27,25 @@ RAG；课程资料问答；文本向量化；Embedding；BM25 检索；多用户
 
 ### 1.1 研究背景
 
-随着大语言模型能力的持续提升，基于自然语言的问题回答系统已经能够较好地完成开放域对话和文本生成任务。然而，在课程问答、知识问答、企业文档问答等需要“依据已有资料回答”的场景中，单纯依赖大模型自身参数往往会带来事实偏差、内容幻觉和不可追溯等问题。因此，将外部知识检索与大模型生成结合起来的 Retrieval-Augmented Generation, RAG，成为一种兼顾灵活性与可靠性的常见技术路线。
+在课程问答场景中，用户的问题通常具有明确资料边界。例如，学生会围绕课程时间安排、考试范围、概念定义、算法推导和章节总结进行提问。这类问题与开放域闲聊不同，更强调答案必须来源于课程资料本身，而不是依赖模型记忆进行自由生成。若缺乏检索环节，大模型虽然可以生成流畅文本，但容易出现事实偏差、课程信息过期或回答无依据的问题。
 
-在课程场景中，学生常常需要围绕讲义、课堂笔记和课程说明提问，例如课程安排、算法定义、公式解释、章节重点和考试范围等。如果能够构建一个专门面向课程资料的问答系统，用户便可以通过自然语言快速定位相关内容，而不必手动翻阅大量材料。这类系统既具备明确的应用价值，也能够作为 RAG 课程项目的一个合适落地场景。
+检索增强生成（Retrieval-Augmented Generation, RAG）正适合这类场景。其基本思想是先从外部知识库中召回与问题相关的文本片段，再将这些片段作为上下文交给生成模块，以提升回答的可追溯性和可靠性。对于课程资料系统而言，这意味着系统不仅要“会回答”，更要“依据资料回答”。
 
 ### 1.2 项目目标
 
-本项目旨在实现一个面向课程资料的轻量级 RAG Web 系统，具体目标如下：
+本项目的核心目标如下：
 
-- 构建一个围绕课程讲义和笔记的课程问答系统，而不是通用闲聊机器人。
-- 实现基于本地文本资料的检索增强问答流程，并为 embedding 向量检索预留清晰扩展路径。
-- 支持 OpenAI 兼容接口的远程大模型生成，并保留本地摘要回退能力。
-- 提供完整的 Web 使用界面，包括登录、提问、历史查看和文件管理。
-- 支持多用户资料隔离，使不同用户拥有独立的知识库。
-- 将用户、历史记录和资料元数据持久化到 MySQL 中。
-- 支持通过 Docker 和 1Panel 完成服务器部署。
+- 构建一个面向课程讲义、课堂笔记和参考资料的课程问答系统。
+- 让回答尽量基于当前知识库中的课程资料，而非无依据生成。
+- 实现多用户系统，使不同用户拥有各自独立的资料目录与历史记录。
+- 将系统从单一 BM25 检索升级为 Hybrid Retrieval。
+- 支持远程大模型生成，并保留远程不可用时的本地回退能力。
+- 支持 MySQL 持久化和 1Panel 部署。
+- 保持系统具有较清晰的工程结构和后续可扩展性。
 
 ### 1.3 报告结构
 
-本报告首先介绍项目需求与总体设计，然后说明核心实现模块，包括配置、检索、生成、持久化和前端交互；随后总结项目的数据组织方式、部署方案与运行效果；最后给出项目亮点、局限和后续改进方向。
+本报告依次介绍项目需求、总体设计、检索与向量化实现、系统功能、部署与运行效果、当前局限及改进方向，以完整概括项目的实现过程与现状。
 
 ---
 
@@ -51,39 +53,27 @@ RAG；课程资料问答；文本向量化；Embedding；BM25 检索；多用户
 
 ### 2.1 功能需求
 
-结合课程场景，本项目需要满足以下功能需求：
+本项目围绕课程资料问答，提出以下核心功能需求：
 
-1. 用户登录  
-   系统需要支持账号登录，并通过会话维持登录状态。
-
-2. 课程问答  
-   用户输入自然语言问题后，系统需要围绕课程资料返回回答。
-
-3. 资料检索  
-   回答必须尽量基于已有讲义、笔记和参考资料，而不是无依据生成。
-
-4. 用户资料隔离  
-   不同用户上传的资料应互相独立，不能共用同一知识库目录。
-
-5. 历史记录管理  
-   系统应保存每个用户的提问历史，并允许用户查看和删除。
-
-6. 文件管理  
-   用户应能够查看自己的课程资料文件，支持上传、打开和删除。
-
-7. 后端持久化  
-   用户、历史记录和资料元数据不应随服务重启而丢失。
-
-8. 可部署性  
-   系统需要支持在服务器环境中部署，并具备可持续运行能力。
+1. 支持用户登录与退出。
+2. 支持围绕课程资料进行自然语言提问。
+3. 回答应附带可追溯的来源片段。
+4. 支持用户历史记录保存、查看与删除。
+5. 支持上传、查看、打开和删除课程资料文件。
+6. 不同用户的资料目录和历史记录彼此隔离。
+7. 用户、历史记录和资料元数据能够持久化保存。
+8. 系统应具备本地运行与服务器部署能力。
+9. 登录功能对最终用户开放，但自助注册默认关闭，由管理员创建账号。
 
 ### 2.2 非功能需求
 
-- 可维护性：模块划分清晰，配置、业务逻辑和持久化分离。
-- 可扩展性：后续可以替换更强的检索器或接入向量数据库。
-- 可用性：前端界面应简洁直观，适合问答场景使用。
-- 稳定性：远程模型不可用时，系统不应完全失效。
-- 可移植性：支持本地运行和服务器容器化部署。
+除功能需求外，系统还要求具备：
+
+- 可维护性：模块化组织，配置、业务逻辑和持久化层清晰分离。
+- 可扩展性：后续可以替换更强检索器或引入向量数据库。
+- 可用性：前端界面直观，适合课程资料问答场景。
+- 稳定性：远程模型不可用时系统不应完全失效。
+- 部署友好性：适配 Docker、Gunicorn 和 1Panel。
 
 ---
 
@@ -91,30 +81,30 @@ RAG；课程资料问答；文本向量化；Embedding；BM25 检索；多用户
 
 ### 3.1 系统总体架构
 
-本项目采用分层设计，整体可划分为四层：
+系统整体可分为四层：
 
 1. 表现层  
-   由 Flask 模板和前端脚本构成，负责页面展示、用户交互和 API 调用。
+   基于 Flask 模板和静态前端资源实现登录页、问答页、历史区和文件面板。
 
 2. 业务层  
-   由 RAG 服务模块组成，负责文档切块、检索、生成和用户索引管理。
+   负责文档读取、切块、Hybrid Retrieval、回答生成以及用户级知识库管理。
 
 3. 持久化层  
-   由 MySQL 存储模块构成，负责用户、历史记录和资料元数据的读写。
+   由 MySQL 存储模块实现用户、历史记录和资料元数据的持久化。
 
 4. 基础设施层  
-   由配置、日志、路径与文件处理模块构成，为系统运行提供支撑。
+   负责配置加载、日志、路径与文件处理。
 
-从数据流角度看，系统的核心处理流程如下：
+从数据流角度，系统主要流程为：
 
-1. 用户登录系统。
-2. 系统为当前用户定位其独立资料目录。
-3. 用户提问后，检索器在用户资料目录建立的索引中召回相关片段。
-4. 生成器基于检索结果组织回答。
-5. 回答和来源写入历史记录。
-6. 用户可继续查看来源、管理文件和回看历史。
+1. 未登录时，系统基于公共目录 `data/course/` 提供启动页统计与默认健康状态。
+2. 用户登录系统后，系统定位当前用户的私有资料目录 `storage/materials/<username>/`。
+3. 若当前用户索引尚未完成，则后台构建索引并在前端显示提示。
+4. 用户提问后，系统执行混合检索，得到候选资料片段。
+5. 生成模块基于检索结果输出回答。
+6. 回答与来源保存到历史记录。
 
-### 3.2 项目目录结构
+### 3.2 项目结构
 
 当前项目结构如下：
 
@@ -147,129 +137,62 @@ RAG/
    └─ static/
 ```
 
-### 3.3 核心设计原则
+### 3.3 设计原则
 
-本项目在设计时遵循以下原则：
+本项目遵循以下设计原则：
 
-- 资料优先：所有回答必须尽量基于已检索到的课程资料。
-- 用户隔离：每个用户拥有独立资料目录和历史记录。
-- 轻量可运行：先构建可靠的文本检索基线，再逐步增强。
-- 部署友好：尽量降低服务器运行依赖，适配 Docker 和 1Panel。
+- 资料优先：回答必须尽量依据课程资料。
+- 用户隔离：用户知识库互相独立。
+- 可运行优先：在保证系统完整可用的前提下逐步增强检索能力。
+- 工程闭环：实现从问答到持久化再到部署的完整链路。
 
 ---
 
-## 4. 系统实现
+## 4. 检索与向量化实现
 
-### 4.1 配置管理
+### 4.1 文档加载与切块
 
-配置逻辑位于 [config_handler.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/core/config_handler.py)。
+资料加载位于 `course_rag/core/file_handler.py`，切块逻辑位于 `course_rag/services/rag_chunking.py`。
 
-系统采用 YAML 配置文件与本地环境文件结合的方式：
+当前系统默认使用 Markdown 资料，其优点包括：
 
-- `config/rag.yml`  
-  定义应用名、公共资料目录、用户资料目录、允许文件类型等。
+- 结构清晰，标题和段落层级较稳定。
+- 噪声少于 PDF 抽取文本。
+- 更适合作为课程问答的受控语料。
 
-- `config/agent.yml`  
-  定义远程模型是否启用、基础地址、模型名和超参数。
+系统在建立索引时会：
 
-- `config/prompts.yml`  
-  定义系统提示词、用户提示模板和推荐问题。
-
-- `.env.local`  
-  用于本地存储 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 MySQL 连接信息。
-
-当前关键配置如下：
-
-- 应用名：`COMP5575 Course RAG`
-- 公共课程目录：`data/course`
-- 用户资料根目录：`storage/materials`
-- 默认允许类型：`.md`
-- 远程模型名：`qwen3-max`
-- 远程接口地址：`https://dashscope.aliyuncs.com/compatible-mode/v1`
-
-### 4.2 文档加载与切块
-
-资料加载位于 [file_handler.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/core/file_handler.py)，切块逻辑位于 [rag_chunking.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_chunking.py)。
-
-系统当前默认使用 Markdown 资料，其原因是：
-
-- 文本结构清晰，标题、列表和段落层级较容易保留；
-- 比 PDF 更少出现文本抽取噪声；
-- 更适合课程项目中对可控性和稳定性的要求。
-
-索引建立流程如下：
-
-1. 扫描资料目录中符合扩展名要求的文件。
+1. 扫描符合扩展名要求的文件。
 2. 读取文件内容并构建文档对象。
-3. 按固定长度和重叠窗口进行切块。
-4. 将所有 chunk 交给检索器建立索引。
+3. 按 `chunk_size = 420`、`chunk_overlap = 80` 进行切块。
+4. 交给检索器建立索引。
 
-当前检索参数包括：
+### 4.2 BM25 检索
 
-- `chunk_size = 420`
-- `chunk_overlap = 80`
-- `top_k = 4`
-- `max_context_chars = 2200`
-- `min_score = 0.1`
-- `title_boost = 0.45`
+BM25 检索器的实现位于 `course_rag/services/rag_retriever.py`。其主要职责包括：
 
-### 4.3 向量化设计与检索策略
+- 中英文轻量分词。
+- 统计词频和逆文档频率。
+- 对标题命中与章节标题命中进行加权。
+- 返回关键词相关性较高的候选 chunk。
 
-向量化是 RAG 系统中的关键环节，其目标是把非结构化文本转换为可计算的数值表示，使系统能够根据语义相似度而不仅仅是关键词重合度进行检索。对于课程资料问答场景，向量化的意义主要体现在以下几个方面：
+BM25 的优势在于：
 
-- 能够更好地处理“同义表达”问题，例如“上课时间”“课程安排”“lecture schedule”可能指向同一类知识。
-- 能够降低纯词面匹配的局限，使系统在课程概念、公式解释和章节总结场景中具有更好的语义泛化能力。
-- 为后续接入向量数据库、混合检索和 rerank 提供统一的数据表示基础。
+- 本地运行，不依赖额外外部服务。
+- 对课程资料中关键词明确的问题表现稳定。
+- 实现成本较低，便于形成可运行基线。
 
-当前仓库的配置层已经预留了 embedding 模型字段：
+### 4.3 Embedding 向量化实现
 
-- `config/rag.yml` 中包含 `embedding_model_name: text-embedding-v4`
+与早期仅预留 embedding 配置不同，当前版本已经真正实现 embedding 检索。其实现路径如下：
 
-这说明系统设计时已经考虑了向量化路线，只是当前运行版本尚未将其完整落地为在线检索链路。
+1. 将每个 chunk 序列化为检索文本。
+2. 使用 OpenAI 兼容接口调用 embedding 模型 `text-embedding-v4`。
+3. 对得到的向量进行归一化处理。
+4. 将用户问题编码为 query embedding。
+5. 通过余弦相似度计算 query 与 chunk 向量之间的语义相似度。
 
-#### 4.3.1 文档向量化的基本流程
-
-在课程资料场景中，文档向量化通常包含以下步骤：
-
-1. 文档清洗  
-   对 Markdown、PDF 或笔记文本进行标准化处理，去除无关符号、格式噪声和空白片段。
-
-2. 文档切块  
-   将完整文档按段落、标题层级或固定窗口切分为多个 chunk。切块过大容易引入噪声，过小则会破坏语义完整性，因此需要在语义完整性和检索粒度之间取得平衡。
-
-3. Chunk 编码  
-   使用 embedding 模型将每个 chunk 编码为固定维度的向量。例如，一个 chunk 可以被表示为一个高维实数向量：
-
-   \[
-   \mathbf{v}_i \in \mathbb{R}^d
-   \]
-
-4. 向量存储  
-   将每个 chunk 的文本、元数据和向量一并保存到向量数据库或本地索引结构中，便于后续查询。
-
-对于本项目而言，文档切块已经在 [rag_chunking.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_chunking.py) 中实现。若后续接入 embedding，只需要在切块完成后，增加“chunk -> embedding 向量”的编码步骤即可。
-
-#### 4.3.2 查询向量化
-
-与文档向量化相对应，用户问题也需要被编码为与文档向量同一语义空间中的向量：
-
-\[
-\mathbf{q} \in \mathbb{R}^d
-\]
-
-这样，系统就可以直接比较问题向量与各个文档向量之间的相似度，从而实现语义检索。
-
-在课程问答场景中，这一点尤其重要。例如用户问：
-
-- “什么时候上课”
-- “课程安排是什么”
-- “lecture 是几点开始”
-
-这三种问法在词面上差异较大，但从语义上都指向课程时间安排。若采用向量化表示，系统会更容易把这些问法映射到相近的语义空间区域。
-
-#### 4.3.3 相似度计算
-
-向量检索中最常用的相似度度量之一是余弦相似度：
+余弦相似度公式如下：
 
 \[
 \text{cos}(\theta) = \frac{\mathbf{q} \cdot \mathbf{v}_i}{\|\mathbf{q}\|\|\mathbf{v}_i\|}
@@ -278,247 +201,214 @@ RAG/
 其中：
 
 - \(\mathbf{q}\) 表示问题向量
-- \(\mathbf{v}_i\) 表示第 \(i\) 个文档块的向量
-- 分子表示点积
-- 分母表示向量范数的乘积
+- \(\mathbf{v}_i\) 表示第 \(i\) 个 chunk 向量
 
-余弦相似度的优点在于，它更关注方向而不是长度，因此特别适合文本检索场景。不同 chunk 的长度可能不同，但在 embedding 空间中，方向更能体现语义内容。
+当前 embedding 检索的实现特点是：
 
-#### 4.3.4 向量化在本项目中的理想链路
+- 向量由远程接口在索引构建阶段生成。
+- 生成后的向量保存在内存中。
+- 当前尚未写入独立向量数据库。
+- 单次 batch 大小被限制为 `10`，以兼容 DashScope embedding 接口。
 
-如果将本项目从当前的 BM25 检索升级为基于 embedding 的语义检索，其理想流程可设计为：
+### 4.4 Hybrid Retrieval 融合策略
 
-1. 读取课程资料  
-2. 执行文档切块  
-3. 为每个 chunk 生成 embedding 向量  
-4. 将向量和 chunk 元数据写入向量索引  
-5. 用户提问时，先将问题编码为向量  
-6. 计算问题向量与 chunk 向量之间的相似度  
-7. 召回 Top-K 最相关 chunk  
-8. 将召回结果交给远程大模型或本地摘要器生成答案
+当前系统的检索后端已经从纯 BM25 升级为 `hybrid_bm25_embedding`。实现上，系统会同时执行：
 
-这一流程相比当前词项匹配检索，最大的增强点在于：系统能够围绕“语义相似”而不仅是“词项重合”召回资料。
+- BM25 关键词检索
+- embedding 语义检索
 
-#### 4.3.5 当前实现与预留扩展
+然后利用融合排序合并结果。当前核心参数包括：
 
-需要明确指出的是，当前代码实际运行时，检索后端仍为：
+- `bm25_weight`
+- `embedding_weight`
+- `rrf_k`
+- `candidate_top_k`
 
-```text
-backend: local_bm25
+这种设计兼顾了两种检索方式的优势：
+
+- BM25 更擅长精确关键词匹配
+- embedding 更擅长处理语义相近但表述不同的问题
+
+需要注意的是，系统虽然默认目标后端是 Hybrid Retrieval，但运行时仍保留回退逻辑。若 embedding 所需配置缺失，或者远程 embedding 请求失败，实际运行后端会自动退回 `local_bm25`，从而保证系统继续可用。
+
+### 4.5 当前技术边界
+
+需要明确指出，当前系统虽然已经实现 Hybrid Retrieval，但仍然不是“embedding + vector DB”的完整落地方案。现阶段的真实状态是：
+
+- 已实现：BM25 + in-memory embedding index
+- 未实现：embedding 向量持久化到独立向量数据库
+
+这意味着系统每次重启时，如果索引不存在，就需要重新向量化全部 chunk。因此，Hybrid Retrieval 会显著增加服务启动阶段的索引构建时间。
+
+---
+
+## 5. 生成模块实现
+
+生成逻辑位于 `course_rag/services/rag_generator.py`。
+
+系统当前支持以下回答模式：
+
+- `remote_llm`：远程大模型生成成功。
+- `local_summary`：远程模型不可用时由本地摘要器生成。
+- `no_context`：当前知识库中没有足够相关内容。
+- `indexing`：索引尚在构建中，提示稍候再问。
+
+这种模式设计保证了系统的鲁棒性。即使远程模型、embedding 或索引构建出现问题，系统仍然可以通过回退机制维持基本可用性。
+
+---
+
+## 6. 异步索引构建与启动阶段优化
+
+### 6.1 问题背景
+
+在启用 Hybrid Retrieval 之后，系统启动时不仅要做文档切块，还要对全部 chunk 调用远程 embedding 接口完成向量化。对于当前默认公共资料库，大约需要处理：
+
+- `10` 份文档
+- `215` 个 chunk
+
+实际测试表明，这一步通常需要约 `75-80` 秒。如果继续使用同步构建模式，服务在索引完成前不会开始监听端口，用户会直接看到浏览器连接失败。
+
+### 6.2 当前解决方案
+
+当前版本已经将索引改为后台异步构建：
+
+- Flask 服务会先启动并监听 `127.0.0.1:7860`
+- 后台线程执行知识库索引构建
+- `/api/health` 会返回当前索引状态
+- 登录页和主页面前端轮询健康状态，并显示“知识库索引构建中”提示
+- 构建完成后自动恢复登录和提问功能
+
+当前健康检查在启动初期会返回类似：
+
+```json
+{
+  "backend": "initializing",
+  "chunks": 0,
+  "documents": 0,
+  "indexing": true,
+  "message": "知识库索引构建中，请稍候。",
+  "ready": false,
+  "status": "indexing"
+}
 ```
 
-也就是说，当前系统的在线召回链路仍然基于词项统计，而不是真正的 embedding 向量检索。对应实现位于 [rag_retriever.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_retriever.py)，其中通过分词、词频、逆文档频率和标题加权来完成排序。
+索引完成后则变为：
 
-因此，本项目在“向量化”方面目前处于以下状态：
+```json
+{
+  "backend": "hybrid_bm25_embedding",
+  "chunks": 215,
+  "documents": 10,
+  "indexing": false,
+  "message": "知识库已准备就绪。",
+  "ready": true,
+  "status": "ok"
+}
+```
 
-- 设计层：已经明确了 embedding 扩展方向；
-- 配置层：已经预留 embedding 模型名称；
-- 数据层：已经完成 chunk 化和元数据组织；
-- 运行层：尚未把向量编码和向量相似度召回接入主链路。
+### 6.3 工程意义
 
-从课程项目报告角度看，这一状态是合理的。因为它展示了一个完整的工程演进路径：先用 BM25 构建稳定基线，再在此基础上逐步替换为语义向量检索。
+这一调整的重要意义在于：
 
-### 4.4 当前检索模块实现
+- 用户不再把“索引尚未完成”误判为“服务挂掉”。
+- 前端启动体验更稳定。
+- 启动耗时问题被显式暴露为状态，而不是隐藏为连接错误。
 
-检索逻辑位于 [rag_retriever.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_retriever.py)。
+---
 
-当前版本采用本地 BM25 风格检索器，而不是向量数据库，主要考虑如下：
+## 7. Web 与前端实现
 
-- 实现成本较低，便于快速搭建课程项目原型。
-- 对课程 Markdown 资料场景具有较好的词项匹配效果。
-- 不依赖额外服务，便于本地运行和服务器部署。
+### 7.1 Web 后端
 
-BM25 检索器当前主要完成以下工作：
-
-- 对中英文文本进行轻量分词；
-- 计算词频和逆文档频率；
-- 对标题命中和章节标题命中进行额外加权；
-- 根据得分返回 Top-K 相关 chunk。
-
-这使系统即使在没有 embedding 和向量库的情况下，也能形成一个可运行的课程问答基线。
-
-### 4.5 生成模块
-
-生成逻辑位于 [rag_generator.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_generator.py)。
-
-当前系统支持三种回答模式：
-
-1. `remote_llm`  
-   当远程模型启用且可成功读取 `OPENAI_API_KEY` 时，系统调用 OpenAI 兼容接口生成回答。
-
-2. `local_summary`  
-   当远程模型不可用或请求失败时，系统根据检索到的句子进行本地摘要和组织。
-
-3. `no_context`  
-   当知识库中没有足够相关的资料时，系统明确说明资料不足。
-
-这种设计使系统具有较好的鲁棒性。即使服务端未正确配置远程模型，系统仍然可以作为“检索 + 本地摘要”工具继续运行。
-
-### 4.6 Web 后端实现
-
-Web 路由位于 [web.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/web.py)。
-
-当前主要接口如下：
+Flask 路由位于 `course_rag/web.py`。主要接口包括：
 
 - `GET /`：问答主页
 - `GET /login`：登录页
 - `POST /api/auth/login`：登录接口
+- `POST /api/auth/register`：接口保留，但当前固定返回 403，表示自助注册已关闭
 - `POST /api/auth/logout`：退出接口
-- `GET /api/auth/me`：查询登录态
+- `GET /api/auth/me`：读取登录态
 - `POST /api/ask`：提问接口
 - `GET /api/history`：读取历史记录
 - `DELETE /api/history/<record_id>`：删除历史记录
 - `POST /api/upload`：上传资料
-- `GET /api/files`：列出资料文件
-- `DELETE /api/files`：删除资料文件
+- `GET /api/files`：文件列表
+- `DELETE /api/files`：删除文件
 - `GET /api/source`：打开来源文件
 - `GET /api/health`：健康检查
 
-### 4.7 用户体系与 MySQL 持久化
+### 7.2 登录页与问答页
 
-数据持久化位于 [store.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/persistence/store.py)。
+前端模板位于：
 
-系统启动时会自动：
+- `course_rag/templates/auth.html`
+- `course_rag/templates/dashboard.html`
 
-- 初始化 `storage/` 目录；
-- 创建 MySQL 数据库 `course_rag`；
-- 创建 `users`、`history` 和 `user_materials` 三张核心表；
-- 迁移旧版 JSON 数据；
-- 为用户建立资料目录。
+前端脚本与样式位于：
 
-其中：
+- `course_rag/static/js/auth.js`
+- `course_rag/static/js/app.js`
+- `course_rag/static/css/styles.css`
 
-- `users` 表保存用户名、密码哈希和创建时间；
-- `history` 表保存提问、回答、模式和来源；
-- `user_materials` 表保存用户资料文件的元数据。
+当前界面实现了：
 
-密码采用哈希形式保存，而不是明文保存，提高了系统的基本安全性。
+- 登录页状态提示
+- 登录页仅保留登录，不向终端用户开放自助注册
+- 问答页对话式布局
+- 启动阶段遮罩与索引提示
+- 历史记录卡片列表
+- 文件抽屉面板
+- 自定义删除确认层
 
-### 4.8 多用户资料隔离
+### 7.3 当前前端体验
 
-用户级 RAG 服务管理位于 [rag_service.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_service.py)。
+前端当前已经与索引状态联动：
 
-系统登录后，并不会继续使用公共 `data/course` 目录回答问题，而是切换到：
+- 登录页在索引中会禁用登录按钮并提示等待
+- 主页面在索引中会禁用输入框并显示构建遮罩
+- 索引完成后自动恢复可交互状态
+
+---
+
+## 8. 多用户隔离与 MySQL 持久化
+
+### 8.1 用户隔离
+
+系统会为每个用户创建独立资料目录：
 
 ```text
 storage/materials/<username>/
 ```
 
-这意味着：
+登录后问答不再使用统一公共目录，而是切换到当前用户自己的资料目录。因此：
 
-- 用户上传的文件只对自己可见；
-- 不同用户的检索结果彼此隔离；
-- 相同问题在不同用户下可能得到不同答案；
-- 公共课程资料与用户私有知识库是两套概念。
+- 用户上传的文件仅自己可见
+- 不同用户即使问同样的问题，答案也可能不同
+- 资料目录内容直接影响检索效果
 
-这一点也是系统从单用户原型向多用户系统演进的关键。
+需要说明的是，公共目录 `data/course/` 仍然存在，但它主要用于未登录阶段的默认上下文展示。真正进入系统后，问答服务和文件面板都只面向当前登录用户的私有资料目录。
 
----
+### 8.2 持久化设计
 
-## 5. 前端设计与交互实现
+MySQL 存储模块位于 `course_rag/persistence/store.py`。当前数据库 `course_rag` 中主要包含：
 
-前端模板位于：
+- `users`
+- `history`
+- `user_materials`
 
-- [auth.html](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/templates/auth.html)
-- [dashboard.html](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/templates/dashboard.html)
+其职责分别是：
 
-前端资源位于：
+- `users`：保存用户信息与密码哈希
+- `history`：保存每次提问、回答、模式和来源
+- `user_materials`：保存用户资料元数据
 
-- [styles.css](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/static/css/styles.css)
-- [app.js](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/static/js/app.js)
-- [auth.js](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/static/js/auth.js)
-
-### 5.1 登录页设计
-
-登录页面面向普通用户，仅保留必要内容：
-
-- 系统名称
-- 简短功能说明
-- 用户名输入框
-- 密码输入框
-- 登录按钮
-
-考虑到系统采用管理员控用户的方式，前端自助注册功能已关闭。
-
-### 5.2 问答页设计
-
-问答页采用现代浅色工作台风格，尽量接近对话式产品的使用习惯，页面中集成了：
-
-- 当前用户展示
-- 退出登录
-- 问答输入框
-- 回答展示区
-- 历史记录区
-- 文件查看与管理区
-
-### 5.3 历史记录管理
-
-历史记录区支持：
-
-- 仅显示当前用户自己的历史；
-- 固定卡片高度；
-- 超出部分省略号显示；
-- 删除单条历史；
-- 使用页面内自定义确认弹层，而不是浏览器原生提示框。
-
-### 5.4 文件面板
-
-文件面板支持：
-
-- 查看当前资料文件列表；
-- 显示文件类型、名称、大小和更新时间；
-- 打开文件；
-- 删除文件；
-- 上传新文件后自动刷新知识库。
+这种设计使系统在服务重启后仍能保留用户与使用记录。
 
 ---
 
-## 6. 数据组织与运行状态
+## 9. 部署与工程化支持
 
-### 6.1 默认公共数据集
-
-当前 `data/course` 下包含 10 份 Markdown 课程资料：
-
-- `Lecture 1.md`
-- `Lecture 2.md`
-- `Lecture 3.md`
-- `Lecture 4.md`
-- `Lecture 5.md`
-- `Lecture 7.md`
-- `Lecture 8.md`
-- `Lecture 9.md`
-- `Lecture 11.md`
-- `Note.md`
-
-在当前切块参数下，默认公共知识库通常可构建约 215 个检索片段。
-
-### 6.2 用户资料目录
-
-除公共资料外，系统还支持用户私有资料目录：
-
-```text
-storage/materials/lyy/
-storage/materials/zzw/
-...
-```
-
-用户登录后，问答逻辑会优先使用自己的私有资料目录建立索引。因此，若服务器和本地的用户资料目录不同，即使提问相同，回答也可能不同。
-
-### 6.3 运行模式差异
-
-在系统实际运行中，回答模式通常会表现为：
-
-- `remote_llm`
-- `local_summary`
-- `no_context`
-
-其中，若服务端只显示“远程模型已启用”但未实际配置 `OPENAI_API_KEY`，则后端仍会回退到本地模式。这是部署阶段一个非常重要的工程细节。
-
----
-
-## 7. 部署实现与工程化支持
-
-### 7.1 本地运行
+### 9.1 本地运行
 
 本地运行方式如下：
 
@@ -527,184 +417,145 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-应用默认监听：
+默认访问地址：
 
 ```text
 http://127.0.0.1:7860
 ```
 
-### 7.2 生产部署组件
+### 9.2 部署文件
 
-项目已经补齐部署相关文件：
+项目已经补齐以下部署文件：
 
-- [Dockerfile](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/Dockerfile)
-- [gunicorn.conf.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/gunicorn.conf.py)
-- [deploy/1panel/docker-compose.yml](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/deploy/1panel/docker-compose.yml)
-- [deploy/1panel/README.md](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/deploy/1panel/README.md)
+- `Dockerfile`
+- `gunicorn.conf.py`
+- `deploy/1panel/docker-compose.yml`
+- `deploy/1panel/.env.example`
+- `deploy/1panel/README.md`
 
-依赖文件 [requirements.txt](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/requirements.txt) 当前包含：
+### 9.3 1Panel 部署链路
 
-- Flask
-- PyYAML
-- requests
-- pypdf
-- PyMySQL
-- gunicorn
-- cryptography
+服务器部署流程如下：
 
-### 7.3 1Panel 部署流程
+1. 上传项目到服务器
+2. 通过 1Panel 编排启动应用容器与 MySQL 容器
+3. 使用 Gunicorn 提供应用服务
+4. 用 1Panel 网站模块创建反向代理
+5. 将外部流量代理到本地应用端口
 
-系统采用 Docker Compose 启动应用容器和 MySQL 容器，随后通过 1Panel 的反向代理网站进行外部访问。
-
-部署基本流程为：
-
-1. 上传项目到服务器；
-2. 配置 `.env` 文件；
-3. 使用 1Panel 编排启动容器；
-4. 通过 Gunicorn 提供应用服务；
-5. 使用 1Panel 网站模块创建反向代理；
-6. 将外部请求转发到本地服务端口。
-
-当前默认映射为：
+默认映射为：
 
 ```text
 127.0.0.1:17860 -> 7860
 ```
 
-### 7.4 部署阶段遇到的问题
+### 9.4 部署阶段的典型问题
 
-项目在服务器部署过程中，已经处理过以下典型问题：
+在项目从本地运行迁移到服务器过程中，曾处理过以下问题：
 
-- Python 版本差异带来的兼容性问题；
-- MySQL 8 认证插件与 `cryptography` 依赖问题；
-- 1Panel 中构建上下文路径解析问题；
-- 登录后用户私有资料目录不存在导致的 500 错误；
-- 站点目录与项目源码目录混用导致的路径混淆问题；
-- 服务端未配置大模型 key 导致回答模式退回本地摘要的问题。
+- MySQL 8 认证插件与 Python 依赖不兼容
+- embedding 接口批量大小与服务端限制不一致
+- 站点目录与项目源码目录混用导致路径混乱
+- 远程模型 key 未配置导致回答模式回退
+- 用户资料目录不存在导致登录后 500 错误
 
-这些问题表明，RAG 系统从本地实验原型走向服务器环境时，需要额外处理目录挂载、环境变量、依赖安装、数据库初始化和反向代理配置等工程细节。
-
----
-
-## 8. 系统测试与效果分析
-
-### 8.1 功能验证
-
-从当前项目实现和实际运行结果看，以下功能已经完成：
-
-- 用户登录
-- 登录态维持
-- 问答接口调用
-- 历史记录保存与删除
-- 用户资料上传
-- 文件列表查看
-- 文件删除与索引刷新
-- MySQL 持久化
-- 1Panel 反向代理访问
-
-### 8.2 运行效果
-
-项目本地运行时，在远程模型 key 正确配置的前提下，可以返回 `remote_llm` 模式的答案，回答通常更完整、更自然。服务器运行时，若未配置 key，则会回退到 `local_summary` 或 `no_context`，这会导致同样问题在本地和服务器上出现回答不一致。
-
-从检索层面看，当前系统的回答质量仍显著受到 BM25 词项匹配能力的限制。对于“课程时间”“考试安排”“章节总结”这类关键词明确的问题，系统通常能够较稳定召回相关内容；但对于“换一种问法”“跨语言表达”“较强语义改写”的问题，BM25 的鲁棒性弱于基于 embedding 的向量检索。因此，若项目后续希望进一步提升复杂问法下的召回率，最直接的方向就是把当前 chunk 索引升级为向量索引。
-
-因此，系统的最终回答质量主要受两个因素影响：
-
-1. 当前用户资料目录中的内容是否完整；
-2. 服务端是否真正配置并调用了远程大模型。
-
-### 8.3 工程经验总结
-
-本项目的实现说明，一个 RAG 系统的效果不仅取决于算法本身，还强烈依赖于工程实现的完整性。即使本地功能已经可用，若服务器端环境变量、数据目录、依赖或部署路径未配置正确，系统也可能表现出明显不同的行为。
+这些问题表明，RAG 系统的落地效果不仅取决于算法，也高度依赖路径管理、环境配置、依赖安装和部署细节。
 
 ---
 
-## 9. 项目亮点
+## 10. 系统效果与分析
 
-本项目的亮点主要体现在以下几个方面：
+### 10.1 当前默认知识库规模
 
-1. 场景聚焦清晰  
-   项目专门围绕课程资料问答，目标明确，数据来源稳定。
+在默认公共资料目录下，系统当前会构建：
 
-2. 架构层次清晰  
-   配置、业务逻辑、持久化和前端交互分层明确。
+- `10` 份 Markdown 课程资料
+- `215` 个检索切片
 
-3. 多用户隔离  
-   资料目录和历史记录按用户隔离，具备平台化基础。
+但这一数值仅代表未登录状态下的公共索引。用户登录后，`documents` 与 `chunks` 会切换为当前用户私有资料目录的统计结果，因此不同用户之间不一定一致。
 
-4. 支持回退  
-   即使远程模型不可用，仍可以本地摘要模式继续工作。
+### 10.2 当前能力表现
 
-5. 工程闭环完整  
-   从资料管理、检索、生成到数据库与部署，形成了完整系统链路。
+从当前实现看，系统已经具备以下效果：
 
-6. 部署落地性较强  
-   项目不仅能本地运行，还已经适配 Docker、Gunicorn 和 1Panel。
+- 对课程安排、概念解释、章节总结等问题可进行检索增强回答
+- 对关键词明确的问题，BM25 召回较稳定
+- 对语义改写问题，embedding 召回可补足 BM25 的不足
+- 通过 Hybrid Retrieval，整体召回鲁棒性优于纯 BM25
 
----
+### 10.3 当前不足
 
-## 10. 局限性与改进方向
+虽然检索能力已提升，但仍存在以下限制：
 
-### 10.1 当前局限
-
-尽管项目已具备完整原型能力，但仍存在以下局限：
-
-- 检索阶段仍是轻量 BM25 基线，语义理解能力有限；
-- UI 中远程模型状态展示与实际可用性未完全解耦；
-- 多环境配置管理还不够统一；
-- 自动化测试覆盖不足；
-- 对 PDF、DOCX 等非 Markdown 资料类型支持有限。
-
-### 10.2 后续改进方向
-
-后续可考虑从以下方向继续扩展：
-
-1. 引入 embedding 与向量数据库  
-   使用 `text-embedding-v4` 等模型将 chunk 和 query 编码为统一向量空间中的表示，并以余弦相似度完成 Top-K 召回。
-
-2. 引入混合检索  
-   将当前 BM25 与向量检索并行召回，再进行融合排序，以兼顾关键词命中和语义相似。
-
-3. 增加模型状态探测  
-   区分“配置启用”和“运行可用”。
-
-4. 增强管理员功能  
-   支持用户管理、批量导入资料和后台统计。
-
-5. 完善测试体系  
-   增加单元测试、接口测试和部署验证。
-
-6. 支持更多文件类型  
-   优化 PDF、DOCX 的文本抽取与切块。
-
-7. 增加向量缓存与离线建索引流程  
-   避免每次重启时重复计算 embedding，提升部署和重建索引效率。
-
-8. 规范部署目录结构  
-   进一步解耦源码目录、站点目录和持久化目录。
+- embedding 向量没有持久化保存
+- 服务重启时需要重新全量向量化
+- 启动时间受语料规模和远程接口延迟影响明显
+- 当前尚无独立向量数据库支撑更大规模检索
+- 自动化测试覆盖仍然不足
 
 ---
 
+## 11. 项目亮点
 
-## 11. 结论
+本项目的主要亮点包括：
 
-本项目已经完成了一个面向课程资料的 RAG Web 系统，从最初的数据组织和检索增强回答原型，逐步扩展为一个支持多用户、文件管理、数据库持久化和服务器部署的完整工程系统。项目较好地体现了 RAG 技术在课程资料问答场景中的实际落地方式，也展示了从算法原型到部署上线之间需要解决的大量工程问题。
+1. 已从纯关键词检索升级到 Hybrid Retrieval。  
+2. 已真正接入 embedding 检索，而不仅是预留配置。  
+3. 启动阶段实现了异步索引与前端提示联动。  
+4. 多用户资料目录与历史记录隔离明确。  
+5. 支持远程模型生成与本地回退。  
+6. 已适配 Docker、Gunicorn 与 1Panel 部署。  
+7. 整体形成了从资料、检索、生成、前端、数据库到部署的完整系统链路。  
 
-从课程项目角度看，该系统已经具备较完整的教学展示价值和报告总结价值。它不仅说明了如何构建“检索 + 生成”的问答流程，也体现了在真实环境中处理用户隔离、状态持久化、部署适配和运行稳定性问题的能力。后续若进一步引入向量检索和更完善的模型状态管理，系统还可以继续发展为更强的课程知识问答平台。
+---
+
+## 12. 后续改进方向
+
+后续可以从以下方向继续优化：
+
+1. 接入持久化向量数据库  
+   如 Chroma、FAISS 或 pgvector，避免每次重启重算 embedding。
+
+2. 增量索引机制  
+   仅为新增或变更文件重算向量，减少构建耗时。
+
+3. 增加 rerank 层  
+   在 BM25 + embedding 召回后进一步做精排。
+
+4. 完善管理员能力  
+   支持用户管理、批量资料导入和后台统计。
+
+5. 增加自动化测试  
+   覆盖检索、接口、持久化和部署链路。
+
+6. 扩展更多资料格式  
+   在 Markdown 之外更稳定地支持 PDF、DOCX 等课程文件。
+
+---
+
+## 13. 结论
+
+本项目已经从一个课程资料问答原型发展为一个具备完整工程链路的课程问答系统。与早期版本相比，当前实现的关键提升在于：检索后端已经由单一 BM25 升级为 Hybrid Retrieval，embedding 检索已经真正落地，启动阶段也通过异步索引与前端状态提示得到了工程优化。
+
+从课程项目视角看，这个系统不仅展示了 RAG 的基础思想，还体现了一个真实问答系统在多用户、持久化、文件管理、部署与运行优化等方面的工程复杂度。虽然当前还没有引入持久化向量数据库，但系统已经为后续继续演进打下了明确而可用的基础。
 
 ---
 
 ## 参考文件
 
-本报告主要依据以下项目文件整理：
+本报告主要基于以下项目文件整理：
 
-- [README.md](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/README.md)
-- [config/rag.yml](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/config/rag.yml)
-- [config/agent.yml](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/config/agent.yml)
-- [config/prompts.yml](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/config/prompts.yml)
-- [course_rag/web.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/web.py)
-- [course_rag/core/config_handler.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/core/config_handler.py)
-- [course_rag/persistence/store.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/persistence/store.py)
-- [course_rag/services/rag_service.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_service.py)
-- [course_rag/services/rag_generator.py](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/course_rag/services/rag_generator.py)
-- [deploy/1panel/docker-compose.yml](/E:/Academic/COMP5575_High-Dimensional_Data_Management_and_Analytics/Project/RAG/deploy/1panel/docker-compose.yml)
+- `README.md`
+- `config/rag.yml`
+- `config/chroma.yml`
+- `course_rag/web.py`
+- `course_rag/core/config_handler.py`
+- `course_rag/persistence/store.py`
+- `course_rag/services/rag_retriever.py`
+- `course_rag/services/rag_service.py`
+- `course_rag/services/rag_generator.py`
+- `course_rag/static/js/app.js`
+- `course_rag/static/js/auth.js`
+- `course_rag/templates/auth.html`
+- `course_rag/templates/dashboard.html`
+- `deploy/1panel/docker-compose.yml`
