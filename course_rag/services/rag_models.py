@@ -33,3 +33,4 @@ class Chunk:
 class RetrievalResult:
     chunk: Chunk
     score: float
+    details: dict = field(default_factory=dict)

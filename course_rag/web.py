@@ -285,15 +285,18 @@ def create_app() -> Flask:
     def health():
         username = current_username()
         if username:
-            stats = service_manager.get_service(username).index_summary
+            stats = service_manager.get_service(username).index_summary.copy()
         else:
             stats = service_manager.get_public_context()["stats"]
         return jsonify(
             {
-                "status": "ok",
+                "status": stats.get("status", "ok"),
                 "documents": stats.get("documents", 0),
                 "chunks": stats.get("chunks", 0),
                 "backend": stats.get("backend"),
+                "ready": bool(stats.get("ready")),
+                "indexing": bool(stats.get("indexing")),
+                "message": stats.get("message", ""),
             }
         )
 
@@ -333,3 +336,4 @@ if __name__ == "__main__":
         port=rag_conf["port"],
         debug=rag_conf["debug"],
     )
+

@@ -20,16 +20,22 @@
             <section class="auth-card auth-panel">
                 <div class="auth-head">
                     <p class="panel-label">账号登录</p>
-                    <span id="auth-badge" class="auth-badge">未登录</span>
+                    <span id="auth-badge" class="auth-badge">{% if stats.indexing %}构建中{% else %}未登录{% endif %}</span>
                 </div>
-                <p id="auth-status" class="auth-status">请输入用户名和密码登录。若需新增账号，请联系管理员处理。</p>
-                <form id="auth-form" class="auth-form">
+                <p id="auth-status" class="auth-status{% if stats.indexing %} is-info{% endif %}">
+                    {% if stats.indexing %}
+                    {{ stats.message or '知识库索引构建中，页面已启动，预计需要 1 分钟左右。索引完成后即可登录。' }}
+                    {% else %}
+                    请输入用户名和密码登录。若需新增账号，请联系管理员处理。
+                    {% endif %}
+                </p>
+                <form id="auth-form" class="auth-form" data-indexing="{{ 'true' if stats.indexing else 'false' }}">
                     <label class="sr-only" for="auth-username">用户名</label>
                     <input id="auth-username" name="username" type="text" maxlength="32" autocomplete="username" placeholder="用户名">
                     <label class="sr-only" for="auth-password">密码</label>
                     <input id="auth-password" name="password" type="password" minlength="6" autocomplete="current-password" placeholder="密码">
                     <div class="auth-actions">
-                        <button id="login-button" class="secondary-button" type="submit">登录</button>
+                        <button id="login-button" class="secondary-button" type="submit"{% if stats.indexing %} disabled{% endif %}>登录</button>
                     </div>
                 </form>
             </section>
@@ -39,4 +45,3 @@
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 </html>
-

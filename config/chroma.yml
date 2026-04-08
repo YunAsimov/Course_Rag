@@ -1,7 +1,14 @@
-backend: local_bm25
+backend: hybrid_bm25_embedding
 chunk_size: 420
 chunk_overlap: 80
 top_k: 4
 max_context_chars: 2200
 min_score: 0.1
 title_boost: 0.45
+candidate_top_k: 12
+bm25_weight: 1.0
+embedding_weight: 1.0
+rrf_k: 60
+embedding_min_score: 0.15
+embedding_batch_size: 10
+

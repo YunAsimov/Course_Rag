@@ -345,6 +345,69 @@ a {
     background: rgba(254, 242, 242, 0.98);
 }
 
+.startup-overlay[hidden] {
+    display: none;
+}
+
+.startup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(247, 247, 248, 0.76);
+    backdrop-filter: blur(6px);
+}
+
+.startup-dialog {
+    width: min(440px, calc(100vw - 32px));
+    padding: 28px 26px;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 28px 56px rgba(15, 23, 42, 0.16);
+    text-align: center;
+    animation: rise 180ms ease;
+}
+
+.startup-spinner {
+    width: 42px;
+    height: 42px;
+    margin: 0 auto 14px;
+    border-radius: 999px;
+    border: 3px solid rgba(16, 163, 127, 0.16);
+    border-top-color: var(--brand);
+    animation: spin 900ms linear infinite;
+}
+
+.startup-eyebrow {
+    margin: 0;
+    color: var(--brand);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.startup-title {
+    margin: 10px 0 12px;
+    font-size: 1.36rem;
+    line-height: 1.25;
+}
+
+.startup-message,
+.startup-subtle {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.startup-subtle {
+    margin-top: 8px;
+    font-size: 0.92rem;
+}
+
 .files-overlay[hidden] {
     display: none;
 }
@@ -1116,6 +1179,15 @@ textarea {
     }
 }
 
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 @keyframes slideInPanel {
     from {
         opacity: 0;
@@ -1178,3 +1250,6 @@ textarea {
         width: 100%;
     }
 }
+
+
+

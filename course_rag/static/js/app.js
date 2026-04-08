@@ -13,6 +13,9 @@ const filesOverlay = document.getElementById("files-overlay");
 const filesCloseButton = document.getElementById("files-close");
 const filesList = document.getElementById("files-list");
 const filesCount = document.getElementById("files-count");
+const startupOverlay = document.getElementById("startup-overlay");
+const startupMessage = document.getElementById("startup-message");
+const statusBackend = document.getElementById("status-backend");
 const authUsernameLabel = document.getElementById("auth-username-label");
 const historyList = document.getElementById("history-list");
 const historyCount = document.getElementById("history-count");
@@ -34,6 +37,8 @@ let confirmResolver = null;
 let confirmReturnFocus = null;
 let toastTimer = null;
 let filesPanelReturnFocus = null;
+let startupBlocked = askForm?.dataset.indexing === "true";
+let startupPollTimer = null;
 
 function escapeHtml(text) {
     return text
@@ -584,6 +589,60 @@ function showToast(message, tone = "info") {
     }, 3200);
 }
 
+function clearStartupPoll() {
+    if (startupPollTimer) {
+        window.clearTimeout(startupPollTimer);
+        startupPollTimer = null;
+    }
+}
+
+function scheduleStartupPoll() {
+    clearStartupPoll();
+    startupPollTimer = window.setTimeout(checkStartupStatus, 3000);
+}
+
+function setStartupBlocked(indexing, message = "", backend = "") {
+    startupBlocked = indexing;
+    document.body.classList.toggle("modal-open", indexing);
+
+    if (startupOverlay) {
+        startupOverlay.hidden = !indexing;
+    }
+    if (startupMessage) {
+        startupMessage.textContent = message || "正在向量化课程资料并准备检索索引，预计需要 1 分钟左右。";
+    }
+    if (statusBackend && backend) {
+        statusBackend.textContent = `检索 ${backend}`;
+    }
+
+    if (input) {
+        input.disabled = indexing;
+        input.placeholder = indexing ? "知识库索引构建中，请稍候" : "有问题，尽管问";
+    }
+    if (submitButton) {
+        submitButton.disabled = indexing;
+        submitButton.textContent = indexing ? "构建中" : "发送";
+    }
+
+    if (indexing) {
+        scheduleStartupPoll();
+    } else {
+        clearStartupPoll();
+    }
+}
+
+async function checkStartupStatus() {
+    try {
+        const response = await fetch("/api/health");
+        const payload = await response.json();
+        updateStats(payload);
+        const indexing = Boolean(payload.indexing) || payload.status === "indexing";
+        setStartupBlocked(indexing, payload.message || "", payload.backend || "");
+    } catch (error) {
+        setStartupBlocked(true, "服务正在启动并构建知识库，请稍候。", "initializing");
+    }
+}
+
 function formatFileSize(bytes) {
     const size = Number(bytes);
     if (!Number.isFinite(size) || size <= 0) {
@@ -1066,6 +1125,7 @@ async function refreshAuthState() {
         };
         authUsernameLabel.textContent = authState.username;
         await loadHistory();
+        await checkStartupStatus();
     } catch (error) {
         redirectToLogin();
     }
@@ -1231,5 +1291,12 @@ document.addEventListener("keydown", (event) => {
 });
 
 autoResizeComposer();
+setStartupBlocked(startupBlocked);
 
 refreshAuthState();
+
+
+
+
+
+

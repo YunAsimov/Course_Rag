@@ -30,7 +30,7 @@ def load_local_env_file(env_path: str = get_abs_path(".env.local"), encoding: st
 LOCAL_ENV_VALUES = load_local_env_file()
 
 DEFAULT_RAG_CONFIG = {
-    "app_name": "COMP5575 Course RAG",
+    "app_name": "Course RAG",
     "host": "127.0.0.1",
     "port": 7860,
     "debug": False,
@@ -43,13 +43,19 @@ DEFAULT_RAG_CONFIG = {
 }
 
 DEFAULT_CHROMA_CONFIG = {
-    "backend": "local_bm25",
+    "backend": "hybrid_bm25_embedding",
     "chunk_size": 420,
     "chunk_overlap": 80,
     "top_k": 4,
     "max_context_chars": 2200,
     "min_score": 0.1,
     "title_boost": 0.45,
+    "candidate_top_k": 12,
+    "bm25_weight": 1.0,
+    "embedding_weight": 1.0,
+    "rrf_k": 60,
+    "embedding_min_score": 0.15,
+    "embedding_batch_size": 10,
 }
 
 DEFAULT_PROMPTS_CONFIG = {
@@ -163,4 +169,5 @@ database_conf = load_database_config()
 
 if __name__ == "__main__":
     print(rag_conf["chat_model_name"])
+
 

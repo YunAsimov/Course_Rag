@@ -1,11 +1,13 @@
 # Course RAG
 
-一个面向课程讲义、笔记和参考资料的轻量 RAG Web 项目。项目支持本地 BM25 检索、可选远程大模型生成、按用户隔离的资料目录，以及 MySQL 持久化用户与历史记录。
+一个面向课程讲义、笔记和参考资料的轻量 RAG Web 项目。项目当前支持 Hybrid Retrieval（BM25 + Embedding）混合检索、可选远程大模型生成、按用户隔离的资料目录，以及 MySQL 持久化用户与历史记录。
 
 ## 功能
 
 - 默认索引 `data/course` 下的 Markdown 课程资料
-- 使用本地 BM25 风格检索构建可运行的 RAG 基线
+- 使用 Hybrid Retrieval 构建可运行的 RAG 检索基线
+- 其中包含本地 BM25 召回与基于 OpenAI 兼容接口的 embedding 语义召回
+- 若 embedding 所需配置不可用，会自动回退到 BM25 模式
 - 可选接入 OpenAI 兼容接口进行远程生成
 - 提供 Flask Web 问答界面，展示答案和来源片段
 - 不同用户拥有各自独立的资料目录，互不共享上传文件
@@ -29,14 +31,15 @@ python app.py
 
 访问 `http://127.0.0.1:7860`
 
-## 可选启用远程大模型
+## 启用远程模型与 embedding 检索
 
-默认配置下，项目使用本地摘要模式回答问题。若要启用远程模型：
+默认配置下，项目会优先尝试 Hybrid Retrieval；若缺少 key 或远程 embedding 不可用，则回退到 BM25。若要完整启用远程能力：
 
 1. 在 `config/agent.yml` 中把 `enabled` 改为 `true`
 2. 在项目根目录创建 `.env.local`，至少包含 `OPENAI_API_KEY`
 3. 如需覆盖默认地址，可在 `.env.local` 中配置 `OPENAI_BASE_URL`
 4. 如有需要，修改 `model_name`
+5. 如需调整 embedding 模型名，可修改 `config/rag.yml` 中的 `embedding_model_name`
 
 ## MySQL 存储
 
@@ -81,8 +84,9 @@ RAG/
 
 ## 当前实现说明
 
-- 检索阶段使用轻量本地 BM25 检索器，适合课程项目和快速原型
-- 若未开启远程大模型，答案由本地摘要器根据检索片段生成
+- 检索阶段使用 Hybrid Retrieval：BM25 与 embedding 召回并行，再通过融合排序合并结果
+- 若 embedding 所需的远程配置缺失，系统会自动退回到纯 BM25 检索
+- 生成阶段若未开启远程大模型或远程调用失败，则答案由本地摘要器根据检索片段生成
 - 资料文件按用户隔离在 `storage/materials/<username>/`
 
 ## 1Panel 部署

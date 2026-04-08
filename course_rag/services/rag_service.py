@@ -15,11 +15,16 @@ from course_rag.core.path_tool import get_abs_path
 from course_rag.services.rag_chunking import chunk_document
 from course_rag.services.rag_generator import AnswerGenerator
 from course_rag.services.rag_models import Document
-from course_rag.services.rag_retriever import BM25Retriever
+from course_rag.services.rag_retriever import (
+    BM25Retriever,
+    EmbeddingRetriever,
+    HybridRetriever,
+    OpenAICompatibleEmbeddingClient,
+)
 
 
 class RAGService:
-    def __init__(self, data_dir: Optional[str] = None):
+    def __init__(self, data_dir: Optional[str] = None, build_async: bool = False):
         self.rag_conf = load_rag_config()
         self.retrieval_conf = load_chroma_config()
         self.prompts_conf = load_prompts_config()
@@ -31,12 +36,42 @@ class RAGService:
 
         self.documents: list[Document] = []
         self.chunks = []
-        self.retriever: Optional[BM25Retriever] = None
+        self.retriever: Optional[object] = None
         self.generator = AnswerGenerator(self.agent_conf, self.prompts_conf)
-        self.index_summary = {}
         self._index_lock = threading.RLock()
+        self._build_lock = threading.Lock()
+        self._build_thread: Optional[threading.Thread] = None
+        self.index_summary = {
+            "documents": 0,
+            "chunks": 0,
+            "data_dir": self._data_dir_label(),
+            "backend": "initializing",
+            "requested_backend": str(self.retrieval_conf["backend"] or "local_bm25").strip().lower(),
+            "remote_llm_enabled": bool(self.agent_conf.get("enabled")),
+            "embedding_model_name": self.rag_conf.get("embedding_model_name", ""),
+            "embedding_retrieval_ready": False,
+            "status": "indexing" if build_async else "idle",
+            "ready": False,
+            "indexing": bool(build_async),
+            "message": "知识库索引构建中，请稍候。" if build_async else "知识库尚未构建。",
+        }
 
-        self._build_index()
+        if build_async:
+            self.start_background_index()
+        else:
+            self._build_index()
+
+    def start_background_index(self) -> None:
+        thread = self._build_thread
+        if thread and thread.is_alive():
+            return
+
+        self._build_thread = threading.Thread(
+            target=self._build_index,
+            name=f"rag-index-{Path(self.data_dir).stem}",
+            daemon=True,
+        )
+        self._build_thread.start()
 
     def _resolve_data_dir(self, data_dir: str) -> str:
         candidate = Path(data_dir)
@@ -51,7 +86,52 @@ class RAGService:
         except ValueError:
             return self.data_dir
 
-    def _collect_index_data(self) -> tuple[list[Document], list, BM25Retriever, dict]:
+    def _build_retriever(self, chunks: list):
+        requested_backend = str(self.retrieval_conf["backend"] or "local_bm25").strip().lower()
+        bm25_retriever = BM25Retriever(chunks, title_boost=self.retrieval_conf["title_boost"])
+        embedding_retriever: Optional[EmbeddingRetriever] = None
+
+        if requested_backend in {"hybrid_bm25_embedding", "hybrid", "embedding_only", "remote_embedding"}:
+            embedding_client = OpenAICompatibleEmbeddingClient(
+                base_url=self.agent_conf.get("base_url", ""),
+                api_key=self.agent_conf.get("api_key", ""),
+                model_name=self.rag_conf.get("embedding_model_name", ""),
+                timeout_seconds=self.agent_conf.get("timeout_seconds", 30),
+                batch_size=self.retrieval_conf["embedding_batch_size"],
+            )
+            embedding_retriever = EmbeddingRetriever(
+                chunks,
+                embedding_client,
+                min_score=self.retrieval_conf["embedding_min_score"],
+            )
+
+        if requested_backend in {"embedding_only", "remote_embedding"}:
+            if embedding_retriever and embedding_retriever.is_ready:
+                retriever = embedding_retriever
+            else:
+                logger.warning("[索引] embedding_only 未就绪，回退到 BM25")
+                retriever = bm25_retriever
+        elif requested_backend in {"hybrid_bm25_embedding", "hybrid"}:
+            retriever = HybridRetriever(
+                bm25=bm25_retriever,
+                embedding=embedding_retriever,
+                bm25_weight=self.retrieval_conf["bm25_weight"],
+                embedding_weight=self.retrieval_conf["embedding_weight"],
+                rrf_k=self.retrieval_conf["rrf_k"],
+                candidate_top_k=self.retrieval_conf["candidate_top_k"],
+            )
+        else:
+            retriever = bm25_retriever
+
+        return retriever, {
+            "requested_backend": requested_backend,
+            "actual_backend": getattr(retriever, "backend_name", requested_backend),
+            "embedding_model_name": self.rag_conf.get("embedding_model_name", ""),
+            "embedding_retrieval_ready": bool(embedding_retriever and embedding_retriever.is_ready),
+            "embedding_failure_reason": getattr(embedding_retriever, "failure_reason", ""),
+        }
+
+    def _collect_index_data(self) -> tuple[list[Document], list, object, dict]:
         logger.info("[索引] 开始构建知识库索引: %s", self.data_dir)
         file_paths = listdir_with_allowed_type(self.data_dir, self.allowed_extensions)
 
@@ -97,24 +177,72 @@ class RAGService:
             if file_has_chunks:
                 doc_count += 1
 
-        retriever = BM25Retriever(chunks, title_boost=self.retrieval_conf["title_boost"])
+        retriever, retrieval_status = self._build_retriever(chunks)
         index_summary = {
             "documents": doc_count,
             "chunks": chunk_count,
             "data_dir": self._data_dir_label(),
-            "backend": self.retrieval_conf["backend"],
+            "backend": retrieval_status["actual_backend"],
+            "requested_backend": retrieval_status["requested_backend"],
             "remote_llm_enabled": bool(self.agent_conf.get("enabled")),
+            "embedding_model_name": retrieval_status["embedding_model_name"],
+            "embedding_retrieval_ready": retrieval_status["embedding_retrieval_ready"],
         }
-        logger.info("[索引] 构建完成，文档 %s 份，切片 %s 个", doc_count, chunk_count)
+        if retrieval_status["embedding_failure_reason"]:
+            index_summary["embedding_failure_reason"] = retrieval_status["embedding_failure_reason"]
+        logger.info(
+            "[索引] 构建完成，文档 %s 份，切片 %s 个，检索后端 %s",
+            doc_count,
+            chunk_count,
+            index_summary["backend"],
+        )
         return documents, chunks, retriever, index_summary
 
     def _build_index(self) -> None:
-        documents, chunks, retriever, index_summary = self._collect_index_data()
-        with self._index_lock:
-            self.documents = documents
-            self.chunks = chunks
-            self.retriever = retriever
-            self.index_summary = index_summary
+        with self._build_lock:
+            with self._index_lock:
+                current_summary = self.index_summary.copy()
+                current_summary.update(
+                    {
+                        "status": "indexing",
+                        "ready": False,
+                        "indexing": True,
+                        "message": "知识库索引构建中，请稍候。",
+                    }
+                )
+                self.index_summary = current_summary
+
+            try:
+                documents, chunks, retriever, index_summary = self._collect_index_data()
+            except Exception as exc:
+                logger.exception("[索引] 构建失败: %s", exc)
+                with self._index_lock:
+                    failed_summary = self.index_summary.copy()
+                    failed_summary.update(
+                        {
+                            "status": "error",
+                            "ready": bool(self.retriever),
+                            "indexing": False,
+                            "message": "知识库索引构建失败，请稍后重试。",
+                            "index_error": str(exc),
+                        }
+                    )
+                    self.index_summary = failed_summary
+                return
+
+            index_summary.update(
+                {
+                    "status": "ok",
+                    "ready": True,
+                    "indexing": False,
+                    "message": "知识库已准备就绪。",
+                }
+            )
+            with self._index_lock:
+                self.documents = documents
+                self.chunks = chunks
+                self.retriever = retriever
+                self.index_summary = index_summary
 
     def reload_index(self) -> dict:
         self._build_index()
@@ -173,7 +301,7 @@ class RAGService:
         clean_question = question.strip()
         if not clean_question:
             return {
-                "answer": "请输入一个具体问题，例如“为什么文本数据通常使用余弦相似度？”",
+                "answer": "请输入一个具体问题，例如“为什么文本数据通常使用余弦相似度？”。",
                 "mode": "validation",
                 "sources": [],
             }
@@ -184,6 +312,16 @@ class RAGService:
             min_score = self.retrieval_conf["min_score"]
             max_context_chars = self.retrieval_conf["max_context_chars"]
             chunk_count = len(self.chunks)
+            indexing = bool(self.index_summary.get("indexing"))
+            status_message = self.index_summary.get("message", "")
+
+        if indexing:
+            return {
+                "question": clean_question,
+                "answer": status_message or "知识库索引构建中，请稍候再提问。",
+                "mode": "indexing",
+                "sources": [],
+            }
 
         if not retriever or chunk_count == 0:
             return {
@@ -217,12 +355,15 @@ class RAGService:
                     "page_number": result.chunk.metadata.get("page_number"),
                     "section_heading": result.chunk.metadata.get("section_heading"),
                     "page_heading": result.chunk.metadata.get("page_heading"),
+                    "retrieval_details": result.details,
                 }
                 for result in results
             ],
         }
 
     def get_ui_context(self) -> dict:
+        if not self.index_summary.get("ready") and not self.index_summary.get("indexing"):
+            self.start_background_index()
         with self._index_lock:
             stats = self.index_summary.copy()
         return {
@@ -242,7 +383,7 @@ class UserRAGServiceManager:
         self.prompts_conf = load_prompts_config()
         self._services: dict[str, RAGService] = {}
         self._lock = threading.RLock()
-        self._public_service = RAGService(data_dir=self.rag_conf["data_dir"])
+        self._public_service = RAGService(data_dir=self.rag_conf["data_dir"], build_async=True)
 
     def get_public_context(self) -> dict:
         return self._public_service.get_ui_context()
@@ -256,7 +397,7 @@ class UserRAGServiceManager:
         with self._lock:
             service = self._services.get(normalized)
             if service is None or Path(service.data_dir).resolve() != material_dir:
-                service = RAGService(data_dir=str(material_dir))
+                service = RAGService(data_dir=str(material_dir), build_async=True)
                 self._services[normalized] = service
         return service
 
@@ -266,16 +407,9 @@ class UserRAGServiceManager:
         return service.reload_index()
 
     def get_ui_context(self, username: str) -> dict:
-        service = self.get_service(username)
         self.store.sync_materials(username, self.allowed_extensions)
-        stats = service.reload_index()
-        return {
-            "app_name": self.rag_conf["app_name"],
-            "suggested_questions": self.prompts_conf["suggested_questions"],
-            "stats": stats,
-            "allowed_extensions": list(self.allowed_extensions),
-            "allowed_extensions_label": ", ".join(self.allowed_extensions),
-        }
+        service = self.get_service(username)
+        return service.get_ui_context()
 
     def ask(self, username: str, question: str) -> dict:
         service = self.get_service(username)
@@ -291,4 +425,3 @@ class UserRAGServiceManager:
         self.store.sync_materials(username, self.allowed_extensions)
         result["stats"] = service.index_summary.copy()
         return result
-

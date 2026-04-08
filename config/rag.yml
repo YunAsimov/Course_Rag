@@ -1,4 +1,4 @@
-app_name: COMP5575 Course RAG
+app_name: Course RAG
 host: 127.0.0.1
 port: 7860
 debug: false
@@ -9,3 +9,4 @@ allowed_extensions:
   - .md
 chat_model_name: qwen3-max
 embedding_model_name: text-embedding-v4
+

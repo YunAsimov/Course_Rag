@@ -6,7 +6,7 @@
     <title>{{ app_name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page{% if stats.indexing %} is-indexing{% endif %}">
     <div class="dashboard-shell">
         <aside class="history-sidebar">
             <div class="sidebar-brand">
@@ -37,8 +37,8 @@
                 </div>
                 <div class="chat-topbar-right">
                     <div class="status-row">
-                        <span class="status-pill">检索 {{ stats.backend }}</span>
-                        <span class="status-pill">{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
+                        <span id="status-backend" class="status-pill">检索 {{ stats.backend }}</span>
+                        <span id="status-model" class="status-pill">{% if stats.remote_llm_enabled %}远程模型已启用{% else %}本地摘要模式{% endif %}</span>
                         <span class="status-pill">支持 {{ allowed_extensions_label }}</span>
                     </div>
                     <div class="upload-toolbar">
@@ -72,14 +72,24 @@
                 </div>
             </main>
 
-            <form id="ask-form" class="composer composer-floating">
+            <form id="ask-form" class="composer composer-floating" data-indexing="{{ 'true' if stats.indexing else 'false' }}">
                 <label class="sr-only" for="question-input">提问</label>
                 <div class="composer-row composer-chatgpt">
-                    <textarea id="question-input" name="question" rows="1" placeholder="有问题，尽管问"></textarea>
-                    <button id="submit-button" type="submit">发送</button>
+                    <textarea id="question-input" name="question" rows="1" placeholder="{% if stats.indexing %}知识库索引构建中，请稍候{% else %}有问题，尽管问{% endif %}"{% if stats.indexing %} disabled{% endif %}></textarea>
+                    <button id="submit-button" type="submit"{% if stats.indexing %} disabled{% endif %}>发送</button>
                 </div>
             </form>
         </section>
+    </div>
+
+    <div id="startup-overlay" class="startup-overlay"{% if not stats.indexing %} hidden{% endif %}>
+        <div class="startup-dialog" role="status" aria-live="polite">
+            <div class="startup-spinner"></div>
+            <p class="startup-eyebrow">Indexing</p>
+            <h3 class="startup-title">知识库索引构建中</h3>
+            <p id="startup-message" class="startup-message">{{ stats.message or '正在向量化课程资料并准备检索索引，预计需要 1 分钟左右。' }}</p>
+            <p class="startup-subtle">索引完成后页面会自动恢复提问。</p>
+        </div>
     </div>
 
     <div id="confirm-overlay" class="confirm-overlay" hidden>
@@ -118,4 +128,3 @@
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
-
