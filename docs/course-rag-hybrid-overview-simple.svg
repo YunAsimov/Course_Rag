@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="800" y1="0" x2="800" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F8FAFC"/>
+    </linearGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" stroke="#E2E8F0" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="0" y="0" width="2000" height="1200" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0F172A" flood-opacity="0.10"/>
+    </filter>
+    <filter id="soft" x="0" y="0" width="2000" height="1200" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12Z" fill="#7C3AED"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)" opacity="0.55"/>
+
+  <text x="88" y="90" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="38" font-weight="700">Course RAG：混合检索课程问答系统</text>
+  <text x="88" y="128" fill="#64748B" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="21">面向课程讲义、笔记和补充资料的多用户问答平台</text>
+
+  <g filter="url(#shadow)">
+    <rect x="96" y="216" width="320" height="420" rx="28" fill="#FFFFFF" stroke="#F59E0B" stroke-width="3"/>
+    <rect x="452" y="160" width="696" height="480" rx="32" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="3"/>
+    <rect x="1184" y="216" width="320" height="420" rx="28" fill="#FFFFFF" stroke="#2563EB" stroke-width="3"/>
+  </g>
+
+  <rect x="130" y="248" width="152" height="38" rx="14" fill="#FFF7ED" stroke="#F59E0B" stroke-width="2"/>
+  <text x="206" y="273" text-anchor="middle" fill="#C2410C" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">资料层</text>
+  <text x="130" y="326" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="29" font-weight="700">课程资料输入</text>
+  <text x="130" y="378" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700">
+    <tspan x="130" dy="0">支持多格式文件：</tspan>
+    <tspan x="130" dy="34">.md / .pdf / .docx</tspan>
+    <tspan x="130" dy="34">.csv / .json / .pptx</tspan>
+    <tspan x="130" dy="34">按用户目录隔离：</tspan>
+    <tspan x="130" dy="34">storage/materials/&lt;username&gt;</tspan>
+  </text>
+
+  <rect x="502" y="194" width="188" height="38" rx="14" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="2"/>
+  <text x="596" y="219" text-anchor="middle" fill="#6D28D9" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">核心检索层</text>
+  <text x="800" y="278" text-anchor="middle" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="36" font-weight="800">Hybrid Retrieval</text>
+  <text x="800" y="320" text-anchor="middle" fill="#7C3AED" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="25" font-weight="800">BM25 + Embedding + Fusion</text>
+
+  <g filter="url(#soft)">
+    <rect x="520" y="372" width="232" height="172" rx="24" fill="#FFF7ED" stroke="#F59E0B" stroke-width="2.5"/>
+    <rect x="848" y="372" width="232" height="172" rx="24" fill="#EFF6FF" stroke="#2563EB" stroke-width="2.5"/>
+    <circle cx="800" cy="458" r="52" fill="#E9D5FF"/>
+    <circle cx="800" cy="458" r="28" fill="#7C3AED"/>
+  </g>
+
+  <text x="636" y="418" text-anchor="middle" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="28" font-weight="700">BM25</text>
+  <text x="636" y="455" text-anchor="middle" fill="#C2410C" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700">关键词 / 术语 / 章节名</text>
+  <text x="636" y="493" text-anchor="middle" fill="#475569" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600">命中精确词项</text>
+
+  <text x="964" y="418" text-anchor="middle" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="28" font-weight="700">Embedding + Chroma</text>
+  <text x="964" y="455" text-anchor="middle" fill="#1D4ED8" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700">语义检索 + 持久化向量库</text>
+  <text x="964" y="493" text-anchor="middle" fill="#475569" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600">支持同义改写召回</text>
+
+  <text x="800" y="592" text-anchor="middle" fill="#7C3AED" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="29" font-weight="800">融合排序后返回 Top-k 证据片段</text>
+
+  <rect x="1218" y="248" width="152" height="38" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+  <text x="1294" y="273" text-anchor="middle" fill="#1D4ED8" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">生成层</text>
+  <text x="1218" y="326" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="29" font-weight="700">答案生成与持久化</text>
+  <text x="1218" y="378" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700">
+    <tspan x="1218" dy="0">远程 LLM 依据检索上下文回答</tspan>
+    <tspan x="1218" dy="34">失败时回退 local_summary</tspan>
+    <tspan x="1218" dy="34">MySQL 保存用户与历史记录</tspan>
+    <tspan x="1218" dy="34">前端展示来源与文件管理</tspan>
+  </text>
+
+  <path d="M 420 428 C 470 428, 494 428, 518 428" stroke="#7C3AED" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M 1084 428 C 1130 428, 1160 428, 1214 428" stroke="#7C3AED" stroke-width="5" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M 752 456 L 770 456" stroke="#7C3AED" stroke-width="4" stroke-dasharray="10 10" marker-end="url(#arrow)"/>
+  <path d="M 848 456 L 830 456" stroke="#7C3AED" stroke-width="4" stroke-dasharray="10 10" marker-end="url(#arrow)"/>
+
+  <g filter="url(#soft)">
+    <rect x="294" y="714" width="1010" height="108" rx="24" fill="#FFFFFF" stroke="#10B981" stroke-width="2.5"/>
+  </g>
+  <rect x="330" y="749" width="220" height="34" rx="12" fill="#ECFDF5" stroke="#10B981" stroke-width="2"/>
+  <text x="440" y="771" text-anchor="middle" fill="#047857" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">工程特点</text>
+  <text x="580" y="774" fill="#111827" font-family="IBM Plex Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="700">多用户隔离 · 文件未变化跳过重建 · BM25 快照 + Chroma 持久化 · 1Panel 可部署</text>
+</svg>
